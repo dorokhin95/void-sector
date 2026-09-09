@@ -25,7 +25,7 @@ function storyName(who){const c=storyCharacters[who]||storyCharacters.leya;retur
 //    brief → contact → change → climax → debrief; bossPhase по реальным фазам;
 //    lowHull / ally / timer / objects — ситуативные реплики уровня.
 // ---------------------------------------------------------------------------
-const L=(who,text)=>({who,text});
+const L=(who,text,voiceText)=>({who,text,voiceText:voiceText||null});
 const storyScript=[
  // 01 · Первый сигнал — обучение, Иглы
  {brief:[L('voronova','Спектр, это Воронова. «Вектор» — единственный, кто успел выйти на орбиту Эреба.'),L('leya','Лея на связи. Веду тебя по эфиру. Неопознанные сигнатуры в трёх минутах.'),L('spectre','Понял. Системы в норме.')],
@@ -211,7 +211,7 @@ const storyPools={
  bossSpawnExtra:[L('voronova','Босс на полигоне. Полигон подстроил его под твой билд — не расслабляйся.'),L('spectre','Вижу его.'),L('voronova','Тяжёлая цель. Модули — в первую очередь.')],
  dualBoss:[L('leya','Двое! Двойная встреча — полигон решил, что ты справишься.'),L('voronova','Два босса. Разводи их по сторонам, не стой между ними.')],
  endlessStart:[L('voronova','Учебно-боевой полигон «Немезиды». Без ангара, без пауз. Улучшения — подбирай в бою.'),L('leya','Лея на связи. Полигон отсчитывает волны. Постарайся дожить до интересных.'),L('spectre','Постараюсь.')],
- endlessWave:[L('leya','Волна {n}. Полигон фиксирует: ты ещё жив.'),L('voronova','Волна {n}. Симуляция усложняется. Продолжай.'),L('leya','Волна {n}. С каждой волной они злее. Ты — тоже.'),L('spectre','Волна {n}. Ещё живой.'),L('voronova','Волна {n}. Патруль порога продолжается. Эреб за спиной.')]
+ endlessWave:[L('leya','Волна {n}. Полигон фиксирует: ты ещё жив.','Новая волна. Полигон фиксирует: ты ещё жив.'),L('voronova','Волна {n}. Симуляция усложняется. Продолжай.','Новая волна. Симуляция усложняется. Продолжай.'),L('leya','Волна {n}. С каждой волной они злее. Ты — тоже.','Новая волна. С каждой волной они злее. Ты — тоже.'),L('spectre','Волна {n}. Ещё живой.','Новая волна. Ещё живой.'),L('voronova','Волна {n}. Патруль порога продолжается. Эреб за спиной.','Новая волна. Патруль порога продолжается. Эреб за спиной.')]
 };
 
 // ---------------------------------------------------------------------------
@@ -299,7 +299,7 @@ function storySay(line,scripted=true){
   if(storyCurrent)return false;
   storyState.lastGeneric=storyNow();
  }else if(storyCurrent&&!storyCurrent.scripted){storyElapsed=storyCurrent.duration}// сценарная реплика обрывает ситуативную
- storyQueue.push({who:line.who,text:line.text,scripted,duration:storyDuration(line.text)});
+ storyQueue.push({who:line.who,text:line.text,voiceText:line.voiceText||null,scripted,duration:storyDuration(line.text)});
  return true;
 }
 function storySayAll(lines,scripted=true){if(Array.isArray(lines))for(const l of lines)storySay(l,scripted);else if(lines)storySay(lines,scripted)}
@@ -309,15 +309,37 @@ function storyHidePanel(immediate=false){
  if(!storyPanel||!storyVisible)return;storyVisible=false;storyPanel.classList.remove('on');
  clearTimeout(storyHideTimer);if(immediate)storyPanel.hidden=true;else storyHideTimer=setTimeout(()=>{if(!storyVisible)storyPanel.hidden=true},380);
  try{globalThis.sfx?.('radioClose')}catch{}
- if(storySettings.voice&&globalThis.speechSynthesis)try{speechSynthesis.cancel()}catch{}
+ try{globalThis.audioAPI?.stopVoice?.()}catch{}
 }
+// ---------- Предзаписанная озвучка (Silero TTS, см. tools/voice/) ----------
+// voiceKey — тот же алгоритм (FNV-1a от 'who text'), что и в
+// tools/voice/extract_story.mjs, иначе ключи не совпадут с voice-manifest.js.
+function fnv1a(str){let h=0x811c9dc5;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=(h>>>0)*0x01000193}return (h>>>0).toString(16).padStart(8,'0')}
+// Разделитель — NUL ('\0'), не пробел: должен побайтово совпадать с
+// normalizeForKey() в tools/voice/extract_story.mjs, иначе ключи разъедутся.
+function storyVoiceKey(line){return fnv1a(line.who+'\0'+(line.voiceText||line.text))}
+function storyVoiceSrc(line){const e=globalThis.VOICE_MANIFEST?.lines?.[storyVoiceKey(line)];return e?e.src:null}
 function storySpeak(line){
- if(!storySettings.voice||!globalThis.speechSynthesis)return;
- try{
-  const voices=speechSynthesis.getVoices().filter(v=>/^ru/i.test(v.lang));if(!voices.length)return;
-  speechSynthesis.cancel();const c=storyCharacters[line.who]||storyCharacters.leya,u=new SpeechSynthesisUtterance(line.text.replace(/[«»…]/g,''));
-  u.voice=voices[(Object.keys(storyCharacters).indexOf(line.who)+voices.length)%voices.length];u.lang='ru-RU';u.pitch=c.pitch;u.rate=c.rate;u.volume=.9;speechSynthesis.speak(u);
- }catch{}
+ if(!storySettings.voice)return;
+ const src=storyVoiceSrc(line);
+ if(!src){console.warn('story: нет озвучки для реплики',line.who,line.text);return}
+ // ~100мс после звука открытия эфира — даёт radioOpen прозвучать отдельно, не внахлёст с голосом.
+ setTimeout(()=>{if(storyCurrent!==line)return;try{globalThis.audioAPI?.playVoice?.(src)}catch{}},100);
+}
+// Одноразовое проигрывание реплики вне очереди/тика (см. storyPatchFinish) —
+// экраны победы/поражения не тикают storyTick (mode!=='play'), но озвучка там
+// всё равно должна звучать.
+function playStoryVoice(line,onended){
+ if(!storySettings.voice)return false;
+ const src=storyVoiceSrc(line);
+ if(!src){console.warn('story: нет озвучки для реплики',line.who,line.text);onended?.();return false}
+ try{globalThis.audioAPI?.playVoice?.(src,{onended})}catch{onended?.()}
+ return true;
+}
+function playStoryVoiceSequence(lines){
+ if(!storySettings.voice||!lines?.length)return;
+ let i=0;const next=()=>{if(i>=lines.length)return;const l=lines[i++];if(!playStoryVoice(l,next))next()};
+ next();
 }
 function storyStartLine(line){
  storyCurrent=line;storyElapsed=0;if(!storyPanel)storyBuildPanel();if(!storyEls)return;
@@ -325,6 +347,7 @@ function storyStartLine(line){
  storyPanel.style.setProperty('--comms',c.color);storyPanel.className=line.who;storyPanel.classList.toggle('on',true);
  storyEls.portrait.innerHTML=storyPortrait(line.who);storyEls.name.textContent=storyName(line.who);storyEls.text.innerHTML='<i></i>';storyEls.bar.style.width='100%';
  storyShowPanel();try{globalThis.sfx?.('radioOpen',{who:line.who})}catch{}storySpeak(line);
+ try{const nxt=storyQueue[0];if(nxt)globalThis.audioAPI?.preloadVoice?.(storyVoiceSrc(nxt))}catch{}
 }
 function storyTick(now){
  requestAnimationFrame(storyTick);
@@ -372,9 +395,12 @@ function storyPatchFinish(win){
   if(title)title.textContent='БЕЗДНА МОЛЧИТ.';
   const fin=storyScript[19].debrief.map(l=>'<span class="storyEnd"><b style="color:'+storyCharacters[l.who].color+'">'+storyName(l.who)+'</b>'+storyEscape(l.text)+'</span>').join('');
   text.innerHTML=fin+storyEscape(storyEpilogue+scoreLine);
+  // Экран победы: storyTick тут не тикает (mode==='win'), поэтому озвучка — вне очереди/тика.
+  playStoryVoiceSequence(storyScript[19].debrief);
  }else if(!win){
   const l=storyPick(storyLoseLines);
   text.innerHTML='<span class="storyLose" style="color:'+storyCharacters[l.who].color+'">'+storyName(l.who)+' — '+storyEscape(l.text)+'</span>'+storyEscape(text.textContent||'');
+  playStoryVoice(l);
  }
 }
 
