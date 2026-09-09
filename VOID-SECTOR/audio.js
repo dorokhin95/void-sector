@@ -39,6 +39,48 @@ const audioAPI=(function(){
   return buf}
  function shaperCurve(k){if(shaperCache[k])return shaperCache[k];const n=1024,c=new Float32Array(n);for(let i=0;i<n;i++){const x=i/(n-1)*2-1;c[i]=(1+k)*x/(1+k*Math.abs(x))}return shaperCache[k]=c}
 
+ // ---------- Гибридный слой: реальные CC0-сэмплы (Kenney, см. assets/audio/LICENSES.md) ----------
+ // Сэмплы — короткие transient/body-слои ПОВЕРХ уже существующего процедурного синтеза, а не
+ // замена ему: каждый добавляется КАК ЕЩЁ ОДИН УЗЕЛ уже выделенной voice (в v.g), поэтому не
+ // расходует отдельный слот MAX_VOICES. Загрузка — best-effort и не раньше первого успешного
+ // ensureContext() (не блокирует старт игры); если сэмпл не загрузился/не поддержан браузером —
+ // playSampleInto() просто возвращает false и процедурный слой звучит как и раньше.
+ const SAMPLE_MANIFEST={
+  gun:['laserSmall_000','laserSmall_001','laserSmall_002'],
+  critShot:['laserLarge_000','laserLarge_001'],
+  plasma:['laserLarge_002','laserLarge_003'],
+  rail:['laserRetro_000','laserRetro_001'],
+  bolt:['laserRetro_002','laserRetro_003'],
+  explosionSmall:['explosionCrunch_000','explosionCrunch_001','explosionCrunch_002'],
+  explosionMedium:['explosionCrunch_002','explosionCrunch_003','explosionCrunch_004'],
+  explosionLarge:['lowFrequency_explosion_000','lowFrequency_explosion_001','explosionCrunch_004'],
+  hitMetal:['impactMetal_000','impactMetal_001','impactMetal_002'],
+  debris:['impactMetal_002','impactMetal_003','impactMetal_004'],
+  missileLaunch:['thrusterFire_000','thrusterFire_001'],
+  collision:['explosionCrunch_000','explosionCrunch_001']
+ };
+ const sampleBuffers={};let samplesRequested=false;
+ function preloadSamples(){
+  if(samplesRequested||!audio)return;samplesRequested=true;
+  const names=new Set();for(const k in SAMPLE_MANIFEST)for(const n of SAMPLE_MANIFEST[k])names.add(n);
+  for(const n of names)fetch('assets/audio/sfx/'+n+'.mp3').then(r=>r.arrayBuffer()).then(buf=>audio.decodeAudioData(buf)).then(dec=>{sampleBuffers[n]=dec}).catch(()=>{});
+ }
+ function sampleFor(category){
+  const arr=SAMPLE_MANIFEST[category];if(!arr)return null;
+  const loaded=arr.filter(n=>sampleBuffers[n]);if(!loaded.length)return null;
+  return sampleBuffers[loaded[Math.floor(Math.random()*loaded.length)]];
+ }
+ // rate — небольшой разброс скорости (0.94-1.06 по умолчанию; 0.97-1.03 для "механических"
+ // сэмплов вроде hitMetal/debris/collision — см. п.52 задания). Один и тот же взрыв/выстрел
+ // не должен звучать одинаково 20 раз подряд.
+ function playSampleInto(v,t,category,{gain=1,rateMin=.94,rateMax=1.06}={}){
+  const buf=sampleFor(category);if(!buf||!v)return false;
+  try{
+   const src=audio.createBufferSource();src.buffer=buf;const rate=rateMin+Math.random()*(rateMax-rateMin);src.playbackRate.value=rate;
+   const g=audio.createGain();g.gain.value=gain;src.connect(g);g.connect(v.g);src.start(t);src.stop(t+buf.duration/rate+.05);
+   v.src.push(src);return true;
+  }catch{return false}
+ }
  function ensureContext(){
   if(audio||!supported)return audio;
   try{
@@ -56,6 +98,7 @@ const audioAPI=(function(){
    setupMusic();
    if(!pollTimer)pollTimer=setInterval(poll,100);
    audio.onstatechange=()=>{if(audio.state==='running')unlockDone()};
+   preloadSamples(); // best-effort, после успешного контекста — не блокирует старт игры
   }catch(err){console.warn('audio: инициализация не удалась',err);audio=null}
   return audio}
  function applyVolumes(immediate){
@@ -109,17 +152,17 @@ const audioAPI=(function(){
   gun(v,t,o){const n=Math.max(1,Math.min(4,(o.count||2)/2)),A=.45+n*.12,p=rv(.08);
    N(v,t,t+.05,F('highpass',1400*p,.8,G(v,t,.002,A*.5,.03)));
    const c=O(v,'sine',900*p,t,t+.09,G(v,t,.001,A*.5,.06));sweep(c.frequency,900*p,200*p,t,t+.07);
-   if(o.critical)beep(v,t,2600*p,.11,.22,'triangle',1700);return .15},
+   if(o.critical){beep(v,t,2600*p,.11,.22,'triangle',1700);playSampleInto(v,t,'critShot',{gain:.4})}else playSampleInto(v,t,'gun',{gain:.32*Math.min(1,A)});return .15},
   overheat(v,t){N(v,t,t+1.3,F('bandpass',2800,.7,G(v,t,.03,.32,1.2)));for(let i=0;i<3;i++)beep(v,t+i*.22,760-i*120,.14,.14,'square',560-i*100);return 1.4},
   heatWarning(v,t){beep(v,t,1250,.06,.14);beep(v,t+.13,1250,.06,.14);return .25},
-  missileLaunch(v,t,o){const n=Math.min(3,o.count||1);for(let i=0;i<n;i++){const s=t+i*.08;whoosh(v,s,300,1800,.45,.38,'bandpass',1.4);const g=G(v,s,.01,.32,.42);sweep(O(v,'sawtooth',120*rv(.05),s,s+.5,F('lowpass',700,1,g)).frequency,120,60,s,s+.4)}return .6},
+  missileLaunch(v,t,o){const n=Math.min(3,o.count||1);for(let i=0;i<n;i++){const s=t+i*.08;whoosh(v,s,300,1800,.45,.38,'bandpass',1.4);const g=G(v,s,.01,.32,.42);sweep(O(v,'sawtooth',120*rv(.05),s,s+.5,F('lowpass',700,1,g)).frequency,120,60,s,s+.4);playSampleInto(v,s,'missileLaunch',{gain:.4})}return .6},
   lockTick(v,t){beep(v,t,1900,.012,.07,'sine');return .04},
   lockAcquired(v,t){beep(v,t,880,.08,.2);beep(v,t+.09,1320,.1,.22);return .25},
   shieldHit(v,t,o){const p=rv(.08);N(v,t,t+.15,F('highpass',2200,.8,G(v,t,.002,.3,.13)));RM(v,'square',2000*p,180*p,t,t+.16,G(v,t,.002,.2,.14));return .2},
   hullHit(v,t,o){const A=Math.min(1,.6+(o.damage||8)*.02);boom(v,t,80,40,.28,.7*A);N(v,t,t+.22,F('lowpass',400,.8,G(v,t,.003,.45*A,.2)));return .3},
   shieldDown(v,t){const g=G(v,t,.01,.4,.8);LFO(v,18,.5,g.gain,t,t+.85,'square');const o=O(v,'sawtooth',1500,t,t+.85,F('lowpass',2500,1,g));sweep(o.frequency,1500,100,t,t+.8);N(v,t,t+.4,F('bandpass',1200,2,G(v,t,.01,.12,.35)));return .9},
   shieldRestored(v,t){[523,659,784].forEach((f,i)=>beep(v,t+i*.09,f,.35,.16,'sine'));return .7},
-  collision(v,t,o){boom(v,t,60,28,.5,.9);N(v,t,t+.35,F('lowpass',500,.6,G(v,t,.003,.5,.3)));const g=G(v,t+.03,.02,.25,.45),f=F('bandpass',900,3,g);sweep(f.frequency,900,350,t,t+.5);N(v,t+.03,t+.55,f);return .6},
+  collision(v,t,o){boom(v,t,60,28,.5,.9);N(v,t,t+.35,F('lowpass',500,.6,G(v,t,.003,.5,.3)));const g=G(v,t+.03,.02,.25,.45),f=F('bandpass',900,3,g);sweep(f.frequency,900,350,t,t+.5);N(v,t+.03,t+.55,f);playSampleInto(v,t,'collision',{gain:.45,rateMin:.97,rateMax:1.03});return .6},
   emp(v,t){const g=G(v,t,.01,.55,.9),o=O(v,'sine',60,t,t+.95,g);o.frequency.setValueAtTime(60,t);o.frequency.exponentialRampToValueAtTime(400,t+.25);o.frequency.exponentialRampToValueAtTime(30,t+.9);
    for(let i=0;i<5;i++){const s=t+.05+i*.14+rnd()*.05;N(v,s,s+.05,F('highpass',1800,.8,G(v,s,.002,.22,.04)))}
    const w=G(v,t,.05,.07,.85);sweep(O(v,'sine',3000,t,t+.95,w).frequency,3000,5200,t,t+.9);send(v,.35);return 1},
@@ -144,23 +187,25 @@ const audioAPI=(function(){
   shopOpen(v,t){[523,659,784,1046].forEach((f,i)=>beep(v,t+i*.08,f,.4,.12,'sine'));return .8},
   mineArm(v,t){beep(v,t,1000,.03,.08,'sine');beep(v,t+.06,1000,.03,.06,'sine');return .1},
   // Вражеское оружие
-  bolt(v,t){const p=rv(.1);beep(v,t,1200*p,.12,.28,'square',300*p);return .15},
-  plasma(v,t){const p=rv(.08),g=G(v,t,.01,.3,.3),lp=F('lowpass',1400,2,g);sweep(lp.frequency,1400,300,t,t+.3);const o=O(v,'sawtooth',180*p,t,t+.32,lp);LFO(v,28,45,o.frequency,t,t+.32);return .35},
-  rail(v,t){click(v,t,.5,3000,.012);const g=G(v,t,.004,.3,.4);sweep(O(v,'sawtooth',3000,t,t+.42,F('lowpass',5000,1,g)).frequency,3000,400,t,t+.4);return .45},
+  bolt(v,t){const p=rv(.1);beep(v,t,1200*p,.12,.28,'square',300*p);playSampleInto(v,t,'bolt',{gain:.3});return .15},
+  plasma(v,t){const p=rv(.08),g=G(v,t,.01,.3,.3),lp=F('lowpass',1400,2,g);sweep(lp.frequency,1400,300,t,t+.3);const o=O(v,'sawtooth',180*p,t,t+.32,lp);LFO(v,28,45,o.frequency,t,t+.32);playSampleInto(v,t,'plasma',{gain:.3});return .35},
+  rail(v,t){click(v,t,.5,3000,.012);const g=G(v,t,.004,.3,.4);sweep(O(v,'sawtooth',3000,t,t+.42,F('lowpass',5000,1,g)).frequency,3000,400,t,t+.4);playSampleInto(v,t,'rail',{gain:.4});return .45},
   missileEnemy(v,t){whoosh(v,t,200,900,.55,.3,'bandpass',1.2);const g=G(v,t,.02,.28,.5);sweep(O(v,'sawtooth',80*rv(.06),t,t+.55,F('lowpass',500,1,g)).frequency,80,45,t,t+.5);return .6},
   empEnemy(v,t){const g=G(v,t,.005,.3,.25);LFO(v,40,.5,g.gain,t,t+.3,'square');N(v,t,t+.3,F('highpass',1500,.8,g));beep(v,t,2500,.22,.08,'sine',1800);return .32},
-  hitMetal(v,t,o){const f=2200/(1+(o.damage||1)*.04)*rv(.1);beep(v,t,f,.045,.22,'triangle',f*.6);click(v,t,.12,3500,.01);return .08},
+  hitMetal(v,t,o){const f=2200/(1+(o.damage||1)*.04)*rv(.1);beep(v,t,f,.045,.22,'triangle',f*.6);click(v,t,.12,3500,.01);playSampleInto(v,t,'hitMetal',{gain:.45,rateMin:.97,rateMax:1.03});return .08},
   hitShield(v,t){const p=rv(.06);beep(v,t,3200*p,.07,.16,'sine',2600*p);RM(v,'sine',2400*p,310,t,t+.08,G(v,t,.002,.12,.07));return .1},
   hitBlocked(v,t){beep(v,t,320*rv(.08),.09,.28,'triangle',200);N(v,t,t+.08,F('lowpass',600,.8,G(v,t,.002,.2,.07)));return .12},
   // Взрывы
-  explosionSmall(v,t){const g=G(v,t,.003,.5,.3),f=F('lowpass',2500,.7,g);sweep(f.frequency,2500,200,t,t+.3);N(v,t,t+.32,f);boom(v,t,120*rv(.1),50,.22,.35);return .35},
-  explosionMedium(v,t){const g=G(v,t,.004,.7,.7),f=F('lowpass',3000,.7,g);sweep(f.frequency,3000,80,t,t+.7);N(v,t,t+.72,f);boom(v,t,55*rv(.08),42,.6,.55);click(v,t,.3,2000,.03);send(v,.3);return .8},
-  explosionLarge(v,t){const g=G(v,t,.006,.85,1.5),f=F('lowpass',2500,.6,g);sweep(f.frequency,2500,60,t,t+1.5);N(v,t,t+1.52,f);
+  explosionSmall(v,t){const g=G(v,t,.003,.5,.3),f=F('lowpass',2500,.7,g);sweep(f.frequency,2500,200,t,t+.3);N(v,t,t+.32,f);boom(v,t,120*rv(.1),50,.22,.35);playSampleInto(v,t,'explosionSmall',{gain:.5});return .35},
+  explosionMedium(v,t){const g=G(v,t,.004,.7,.7),f=F('lowpass',3000,.7,g);sweep(f.frequency,3000,80,t,t+.7);N(v,t,t+.72,f);boom(v,t,55*rv(.08),42,.6,.55);click(v,t,.3,2000,.03);send(v,.3);playSampleInto(v,t,'explosionMedium',{gain:.55});return .8},
+  explosionLarge(v,t){const g=G(v,t,.006,.85,1.5),f=F('lowpass',2500,.6,g);sweep(f.frequency,2500,60,t,t+1.5);N(v,t,t+1.52,f);playSampleInto(v,t,'explosionLarge',{gain:.6});
    const g2=G(v,t,.01,.4,.55),f2=F('bandpass',600,1.5,g2);sweep(f2.frequency,600,150,t,t+.55);N(v,t,t+.6,f2);boom(v,t,45,30,1.2,.7);send(v,.5);return 1.6},
-  explosionBoss(v,t){let s=t;for(let i=0;i<5;i++){const g=G(v,s,.005,.65,.6+i*.1),f=F('lowpass',2600-i*300,.7,g);sweep(f.frequency,2600,70,s,s+.7);N(v,s,s+.75,f);boom(v,s,60-i*4,32,.7,.5);s+=.15+rnd()*.25}
+  explosionBoss(v,t){let s=t;for(let i=0;i<5;i++){const g=G(v,s,.005,.65,.6+i*.1),f=F('lowpass',2600-i*300,.7,g);sweep(f.frequency,2600,70,s,s+.7);N(v,s,s+.75,f);boom(v,s,60-i*4,32,.7,.5);playSampleInto(v,s,'explosionMedium',{gain:.35});s+=.15+rnd()*.25}
    const r=G(v,t,.1,.5,3),rf=F('lowpass',120,.8,r);N(v,t,t+3.1,rf,true);
-   for(let i=0;i<8;i++){const q=t+1+rnd()*1.8,f=2000+rnd()*2500;beep(v,q,f,.25,.08,i%2?'sine':'triangle',f*.9)}send(v,.6);return 3.2},
-  debris(v,t){const n=3+Math.floor(rnd()*3);for(let i=0;i<n;i++){const s=t+rnd()*.3,f=800+rnd()*2200;beep(v,s,f,.05,.07,'triangle',f*.7)}return .4},
+   for(let i=0;i<8;i++){const q=t+1+rnd()*1.8,f=2000+rnd()*2500;beep(v,q,f,.25,.08,i%2?'sine':'triangle',f*.9)}playSampleInto(v,t+.5,'explosionLarge',{gain:.65});send(v,.6);return 3.2},
+  debris(v,t){const n=3+Math.floor(rnd()*3);for(let i=0;i<n;i++){const s=t+rnd()*.3,f=800+rnd()*2200;beep(v,s,f,.05,.025,'triangle',f*.7)} // тональный звон оставлен, но очень тихим — основной физический характер теперь даёт сэмпл ниже
+   for(let i=0;i<1+Math.floor(rnd()*2);i++)playSampleInto(v,t+rnd()*.25,'debris',{gain:.32,rateMin:.97,rateMax:1.03});
+   return .4},
   flyby(v,t){const g=G(v,t,.25,.16,.3),f=F('bandpass',900,1.5,g);sweep(f.frequency,900,280,t,t+.55);N(v,t,t+.58,f);return .6},
   // Боссы
   bossSpawn(v,t){const lp=F('lowpass',1800,1,v.g);for(let i=0;i<6;i++){const s=t+i*.26,g=audio.createGain();g.connect(lp);envHold(g.gain,s,.01,.22,.18,.05);O(v,'square',i%2?330:440,s,s+.3,g)}
