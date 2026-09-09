@@ -7,7 +7,7 @@
 // Загружается последним, поверх всей игровой логики и Этапов 2–3.
 
 const MOBILE_DEADZONE=.16;
-function mobileAimSpeed(){return Math.min(innerWidth,innerHeight)*2.4}
+function mobileAimSpeed(){return Math.max(innerWidth,innerHeight)*2.6}
 function mobileStickRadius(){return Math.min(innerWidth,innerHeight)*.16+42}
 function vibrate(pattern){try{navigator.vibrate?.(pattern)}catch{}}
 
@@ -73,9 +73,13 @@ function applyMobileMove(){
 function applyMobileAim(dt){
  if(mode!=='play'){aimStick.el?.classList.remove('firing');return}
  if(aimStick.mag>0){
-  const speed=mobileAimSpeed();
-  mx=clamp(mx+aimStick.x*speed*dt,0,innerWidth);
-  my=clamp(my+aimStick.y*speed*dt,0,innerHeight);
+  // Кривая отклика: даже небольшое отклонение стика даёт заметную долю
+  // максимальной скорости (иначе прицел ощущается «ватным»), при этом
+  // направление остаётся точным — кривая применяется к длине вектора, а не
+  // к осям по отдельности.
+  const speed=mobileAimSpeed(),shaped=Math.pow(aimStick.mag,.5)*speed,ux=aimStick.x/aimStick.mag,uy=aimStick.y/aimStick.mag;
+  mx=clamp(mx+ux*shaped*dt,0,innerWidth);
+  my=clamp(my+uy*shaped*dt,0,innerHeight);
   firing=true;aimStick.el?.classList.add('firing');
  }else{
   firing=false;aimStick.el?.classList.remove('firing');
@@ -187,21 +191,59 @@ addEventListener('resize',updateRotateHint);
 addEventListener('orientationchange',()=>setTimeout(updateRotateHint,80));
 
 // ---------- Пересчёт кадра при повороте/изменении вьюпорта ----------
-// iOS в режиме «домашнего экрана» (установленного PWA) иногда не досчитывает
-// canvas правильно при повороте в альбомную: window.innerWidth/innerHeight сразу
-// после orientationchange могут отдавать старые значения (известная задержка
-// WKWebView), а visualViewport иногда получает событие resize, когда обычный
-// window resize не срабатывает вовсе. Поэтому пересчитываем несколько раз с
-// небольшой задержкой и слушаем оба источника.
-function forceReflow(){try{gfx.resize()}catch{}}
-addEventListener('orientationchange',()=>{forceReflow();setTimeout(forceReflow,120);setTimeout(forceReflow,350);setTimeout(forceReflow,700)});
+// iOS в режиме «домашнего экрана» (установленного PWA) — известный баг WebKit:
+// после поворота движок вёрстки может застрять на старых размерах вьюпорта, из-за
+// чего НЕ срабатывает даже @media(orientation:landscape) — компактная вёрстка боя
+// просто не применяется, хотя JS отдаёт правильные innerWidth/innerHeight. Поэтому,
+// помимо пересчёта canvas, дублируем компактные правила из style.css как обычный
+// (не медиа-) стиль на основе JS-проверки размеров — это не зависит от того,
+// правильно ли браузер сам посчитал условие media query.
+let compactStyleEl=null,compactCssCache='';
+function extractCompactCss(){
+ for(const sheet of document.styleSheets){
+  let rules;try{rules=sheet.cssRules}catch{continue}
+  if(!rules)continue;
+  for(const rule of rules){
+   if(rule instanceof CSSMediaRule&&/landscape/.test(rule.media?.mediaText||'')){
+    try{return Array.from(rule.cssRules).map(r=>r.cssText).join('\n')}catch{return''}
+   }
+  }
+ }
+ return'';
+}
+function syncCompactLayout(){
+ const compact=innerWidth>innerHeight&&Math.min(innerWidth,innerHeight)<=650;
+ if(compact){
+  if(!compactCssCache)compactCssCache=extractCompactCss();
+  if(compactCssCache&&!compactStyleEl){compactStyleEl=document.createElement('style');compactStyleEl.setAttribute('data-mobile-compact-fallback','');compactStyleEl.textContent=compactCssCache;document.head.appendChild(compactStyleEl)}
+ }else if(compactStyleEl){compactStyleEl.remove();compactStyleEl=null}
+}
+// Ещё один известный трюк против зависшего вьюпорта: переписать содержимое
+// <meta name=viewport> заставляет WebKit заново разобрать и пересчитать вьюпорт.
+function nudgeViewportMeta(){
+ const m=document.querySelector('meta[name="viewport"]');if(!m)return;
+ const c=m.getAttribute('content');if(!c)return;
+ m.setAttribute('content',c+',shrink-to-fit=yes');
+ requestAnimationFrame(()=>m.setAttribute('content',c));
+}
+// И жёсткий сброс вёрстки всего документа (display:none → синхронное чтение
+// layout-свойства → возврат) — форсирует полный релэйаут, а не только repaint.
+function hardReflow(){try{const b=document.body,prev=b.style.display;b.style.display='none';void b.offsetHeight;b.style.display=prev}catch{}}
+function forceReflow(){
+ try{nudgeViewportMeta()}catch{}
+ hardReflow();
+ try{gfx.resize()}catch{}
+ try{syncCompactLayout()}catch{}
+ try{updateRotateHint()}catch{}
+}
+addEventListener('orientationchange',()=>{forceReflow();setTimeout(forceReflow,120);setTimeout(forceReflow,350);setTimeout(forceReflow,700);setTimeout(forceReflow,1200)});
 addEventListener('resize',forceReflow);
 if(window.visualViewport){visualViewport.addEventListener('resize',forceReflow);visualViewport.addEventListener('scroll',forceReflow)}
 if(window.matchMedia){
  const mq=matchMedia('(orientation:landscape)');
- mq.addEventListener?.('change',()=>{forceReflow();setTimeout(forceReflow,150);setTimeout(forceReflow,400)});
+ mq.addEventListener?.('change',()=>{forceReflow();setTimeout(forceReflow,150);setTimeout(forceReflow,400);setTimeout(forceReflow,900)});
 }
-updateRotateHint();
+forceReflow();
 
 // ---------- Вибро-отклик на ключевые события боя ----------
 if(typeof on==='function'){
