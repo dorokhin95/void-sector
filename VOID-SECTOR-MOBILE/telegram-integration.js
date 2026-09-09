@@ -27,9 +27,15 @@
  function goImmersive(){try{tg.requestFullscreen?.()}catch{}try{tg.lockOrientation?.('landscape')}catch{}}
  goImmersive();
  document.addEventListener('click',e=>{if(e.target.closest('#start,#loadCampaign,#retryLevel,#restart,#fullscreen'))goImmersive()});
- // Telegram меняет размер вьюпорта не всегда через обычный window resize — досчитываем сами.
- tg.onEvent?.('viewportChanged',()=>dispatchEvent(new Event('resize')));
- tg.onEvent?.('fullscreenChanged',()=>dispatchEvent(new Event('resize')));
+ // Telegram сообщает актуальный размер вьюпорта своими событиями — синхронизируем
+ // через единый syncMobileViewport() (mobile-controls.js), а не просто dispatch
+ // обычного resize: у getAppViewport() он и так в приоритете читает
+ // viewportStableHeight/viewportHeight, но лишь когда мы уверены, что размер уже
+ // стабилен (isStateStable), чтобы не пересчитывать кадр на промежуточных кадрах
+ // анимации разворачивания/сворачивания.
+ function syncViewportSafe(){try{syncMobileViewport?.()}catch{}}
+ tg.onEvent?.('viewportChanged',event=>{if(event?.isStateStable!==false)syncViewportSafe()});
+ tg.onEvent?.('fullscreenChanged',syncViewportSafe);
  // Безопасные отступы Telegram (собственная шапка/жесты) поверх обычных env(safe-area-inset-*),
  // см. --tg-safe-* в style.css.
  function applySafeArea(){
@@ -40,8 +46,11 @@
   root.setProperty('--tg-safe-left',Math.max(s.left||0,c.left||0)+'px');
  }
  applySafeArea();
- tg.onEvent?.('safeAreaChanged',applySafeArea);
- tg.onEvent?.('contentSafeAreaChanged',applySafeArea);
+ tg.onEvent?.('safeAreaChanged',()=>{applySafeArea();syncViewportSafe()});
+ tg.onEvent?.('contentSafeAreaChanged',()=>{applySafeArea();syncViewportSafe()});
+ // Первичная синхронизация сразу после ready()/expand() — не ждать первого
+ // внешнего события, чтобы стартовый кадр уже был с верным --app-height и классом.
+ syncViewportSafe();
  // Аппаратная кнопка «назад» Telegram работает как Esc на ПК: пауза в бою, скрыта в меню.
  tg.BackButton?.onClick?.(()=>{try{if(typeof pause==='function'&&(mode==='play'||mode==='pause'))pause()}catch{}});
  if(typeof on==='function')on('modeChange',({to})=>{try{(to==='play'||to==='pause')?tg.BackButton?.show?.():tg.BackButton?.hide?.()}catch{}});

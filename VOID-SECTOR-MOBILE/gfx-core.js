@@ -248,13 +248,20 @@ gfx.setupBuffers=function(){
  if(p.shadow){const size=Math.min(p.shadow,gfx.maxTex);gfx.buffers.shadow=gfxFBO(size,size,{depth:true,linear:false});if(!gfx.buffers.shadow)gfx.shadowDisabled=true}
 };
 gfx.resize=function(){
- W=innerWidth;H=innerHeight;const p=gfx.preset,d=Math.min(devicePixelRatio||1,p.dprCap)*p.scale;
+ const v=getAppViewport();W=v.width;H=v.height;try{document.documentElement.style.setProperty('--app-height',H+'px')}catch{}
+ const p=gfx.preset,d=Math.min(devicePixelRatio||1,p.dprCap)*p.scale;
  canvas.width=Math.max(2,Math.round(W*d));canvas.height=Math.max(2,Math.round(H*d));aspect=W/H;
  const f=1/Math.tan(Math.PI/6),near=.1,far=800,A=(far+near)/(near-far),B=2*far*near/(near-far);
  vp=new Float32Array([f/aspect,0,0,0,0,f,0,0,0,0,A,-1,0,-3*f,B-18*A,18]);
  gfx.setupBuffers();
 };
-removeEventListener('resize',resize);addEventListener('resize',gfx.resize);
+// Снимаем исходный обработчик resize из game.js. Свой собственный на 'resize' не
+// вешаем: в мобильной сборке единственный источник пересчёта — syncMobileViewport()
+// из mobile-controls.js (он же сохраняет относительную позицию прицела через
+// mx/W,my/H — второй независимый слушатель 'resize' успевал вызвать gfx.resize()
+// раньше и портил эту математику). Первый расчёт ниже (gfx.resize()) закрывает
+// самый первый кадр, до того как mobile-controls.js вообще загрузится.
+removeEventListener('resize',resize);
 // ---------- Качество ----------
 gfx.applyQuality=function(name,save=true){
  if(!gfx.presets[name])return;if(name==='ultra'&&!gfx.hdr)name='high';

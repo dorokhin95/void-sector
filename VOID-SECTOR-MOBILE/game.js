@@ -20,7 +20,19 @@ function draw(m,x,y,z,sx,sy,sz,col,glow=0,rx=0,ry=0,rz=0,alpha=1){
 }
 function cylinder(){let v=[],f=[];for(let z of [-1,1])for(let i=0;i<12;i++){let a=i/12*Math.PI*2;v.push([Math.cos(a),Math.sin(a),z])}v.push([0,0,-1],[0,0,1]);for(let i=0;i<12;i++){let j=(i+1)%12;f.push([i,j,j+12],[i,j+12,i+12],[24,j,i],[25,i+12,j+12])}return poly(v,f)}
 const tube=cylinder();
-const cyan=[.25,.95,.88],red=[1,.18,.18],metal=[.20,.29,.37],orange=[1,.4,.12];let W,H,aspect,vp;function resize(){W=innerWidth;H=innerHeight;let d=Math.min(devicePixelRatio,1.6);canvas.width=W*d;canvas.height=H*d;gl.viewport(0,0,canvas.width,canvas.height);aspect=W/H;let f=1/Math.tan(Math.PI/6),near=.1,far=800,A=(far+near)/(near-far),B=2*far*near/(near-far);vp=new Float32Array([f/aspect,0,0,0,0,f,0,0,0,0,A,-1,0,-3*f,B-18*A,18]);gl.uniformMatrix4fv(uvp,false,vp)}addEventListener('resize',resize);resize();
+const cyan=[.25,.95,.88],red=[1,.18,.18],metal=[.20,.29,.37],orange=[1,.4,.12];let W,H,aspect,vp;
+// Единый источник размера «доступного» вьюпорта для мобильной сборки: обычный
+// innerWidth/innerHeight везде, кроме случая, когда страница реально запущена
+// внутри Telegram (см. telegram-integration.js) — там Telegram сам сообщает
+// стабильную высоту вьюпорта (viewportStableHeight/viewportHeight), которая может
+// отличаться от innerHeight из-за собственных панелей и жестов Telegram.
+function getAppViewport(){
+ const tg=window.Telegram&&window.Telegram.WebApp;
+ const width=innerWidth;
+ const height=(tg&&tg.initData&&(tg.viewportStableHeight||tg.viewportHeight))||innerHeight;
+ return{width,height};
+}
+function resize(){const v=getAppViewport();W=v.width;H=v.height;try{document.documentElement.style.setProperty('--app-height',H+'px')}catch{}let d=Math.min(devicePixelRatio,1.6);canvas.width=W*d;canvas.height=H*d;gl.viewport(0,0,canvas.width,canvas.height);aspect=W/H;let f=1/Math.tan(Math.PI/6),near=.1,far=800,A=(far+near)/(near-far),B=2*far*near/(near-far);vp=new Float32Array([f/aspect,0,0,0,0,f,0,0,0,0,A,-1,0,-3*f,B-18*A,18]);gl.uniformMatrix4fv(uvp,false,vp)}addEventListener('resize',resize);resize();
 let stars=Array.from({length:230},()=>({x:(Math.random()-.5)*450,y:(Math.random()-.5)*260,z:-40-Math.random()*420,r:.06+Math.random()*.17}));let rocks=Array.from({length:43},()=>({x:(Math.random()-.5)*125,y:(Math.random()-.5)*62,z:-Math.random()*240,r:.8+Math.random()*3.5,a:Math.random()*6}));
 let mode='menu',time=0,elapsed=0,health=100,score=0,kills=0,wave=0,spawned=0,spawnTimer=0,enemies=[],bullets=[],shots=[],sparks=[],keys={},px=0,py=-2,mx=W*.5,my=H*.45,firing=false,fireCD=0,dashCD=0,pulseCD=0,inv=0,noticeTime=0,boss=null,shake=0,muted=false,audioCtx;const waves=[6,8,10,11,12,13,14,16];
 let vx=0,vy=0,bank=0,pitch=0,missiles=[],trails=[],debris=[],blasts=[],lockTarget=null,lockTime=0,ammo=6,missileCD=0,reload=0,accumulator=0;

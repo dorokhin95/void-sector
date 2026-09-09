@@ -187,63 +187,33 @@ function updateRotateHint(){
 }
 const rotateContinueBtn=document.getElementById('rotateContinue');
 if(rotateContinueBtn)rotateContinueBtn.onclick=()=>{mobileDismissedPortrait=true;updateRotateHint()};
-addEventListener('resize',updateRotateHint);
-addEventListener('orientationchange',()=>setTimeout(updateRotateHint,80));
-
-// ---------- Пересчёт кадра при повороте/изменении вьюпорта ----------
-// iOS в режиме «домашнего экрана» (установленного PWA) — известный баг WebKit:
-// после поворота движок вёрстки может застрять на старых размерах вьюпорта, из-за
-// чего НЕ срабатывает даже @media(orientation:landscape) — компактная вёрстка боя
-// просто не применяется, хотя JS отдаёт правильные innerWidth/innerHeight. Поэтому,
-// помимо пересчёта canvas, дублируем компактные правила из style.css как обычный
-// (не медиа-) стиль на основе JS-проверки размеров — это не зависит от того,
-// правильно ли браузер сам посчитал условие media query.
-let compactStyleEl=null,compactCssCache='';
-function extractCompactCss(){
- for(const sheet of document.styleSheets){
-  let rules;try{rules=sheet.cssRules}catch{continue}
-  if(!rules)continue;
-  for(const rule of rules){
-   if(rule instanceof CSSMediaRule&&/landscape/.test(rule.media?.mediaText||'')){
-    try{return Array.from(rule.cssRules).map(r=>r.cssText).join('\n')}catch{return''}
-   }
-  }
- }
- return'';
-}
-function syncCompactLayout(){
- const compact=innerWidth>innerHeight&&Math.min(innerWidth,innerHeight)<=650;
- if(compact){
-  if(!compactCssCache)compactCssCache=extractCompactCss();
-  if(compactCssCache&&!compactStyleEl){compactStyleEl=document.createElement('style');compactStyleEl.setAttribute('data-mobile-compact-fallback','');compactStyleEl.textContent=compactCssCache;document.head.appendChild(compactStyleEl)}
- }else if(compactStyleEl){compactStyleEl.remove();compactStyleEl=null}
-}
-// Ещё один известный трюк против зависшего вьюпорта: переписать содержимое
-// <meta name=viewport> заставляет WebKit заново разобрать и пересчитать вьюпорт.
-function nudgeViewportMeta(){
- const m=document.querySelector('meta[name="viewport"]');if(!m)return;
- const c=m.getAttribute('content');if(!c)return;
- m.setAttribute('content',c+',shrink-to-fit=yes');
- requestAnimationFrame(()=>m.setAttribute('content',c));
-}
-// И жёсткий сброс вёрстки всего документа (display:none → синхронное чтение
-// layout-свойства → возврат) — форсирует полный релэйаут, а не только repaint.
-function hardReflow(){try{const b=document.body,prev=b.style.display;b.style.display='none';void b.offsetHeight;b.style.display=prev}catch{}}
-function forceReflow(){
- try{nudgeViewportMeta()}catch{}
- hardReflow();
+// ---------- Единый пересчёт вьюпорта ----------
+// Один источник правды вместо цепочки таймеров и хаков: получаем реальный
+// размер (getAppViewport() — см. game.js, учитывает Telegram), публикуем его в
+// --app-height (её же читает style.css для #menu и т.п.), включаем/выключаем
+// компактную вёрстку боя классом (html.compact-landscape в style.css — не
+// зависит от того, сработал ли у браузера @media сам по себе), пересчитываем
+// canvas и восстанавливаем относительную позицию прицела, чтобы поворот или
+// смена полноэкранного режима не сдвигали её резко.
+function syncMobileViewport(){
+ const v=getAppViewport();
+ try{document.documentElement.style.setProperty('--app-height',v.height+'px')}catch{}
+ document.documentElement.classList.toggle('compact-landscape',v.width>v.height&&v.height<=650);
+ const nx=W?mx/W:.5,ny=H?my/H:.5;
  try{gfx.resize()}catch{}
- try{syncCompactLayout()}catch{}
- try{updateRotateHint()}catch{}
+ mx=nx*W;my=ny*H;
+ updateRotateHint();
 }
-addEventListener('orientationchange',()=>{forceReflow();setTimeout(forceReflow,120);setTimeout(forceReflow,350);setTimeout(forceReflow,700);setTimeout(forceReflow,1200)});
-addEventListener('resize',forceReflow);
-if(window.visualViewport){visualViewport.addEventListener('resize',forceReflow);visualViewport.addEventListener('scroll',forceReflow)}
-if(window.matchMedia){
- const mq=matchMedia('(orientation:landscape)');
- mq.addEventListener?.('change',()=>{forceReflow();setTimeout(forceReflow,150);setTimeout(forceReflow,400);setTimeout(forceReflow,900)});
+let mobileViewportRaf=null;
+function scheduleSyncMobileViewport(){
+ if(mobileViewportRaf)return;
+ mobileViewportRaf=requestAnimationFrame(()=>{mobileViewportRaf=null;syncMobileViewport()});
 }
-forceReflow();
+addEventListener('resize',scheduleSyncMobileViewport);
+addEventListener('orientationchange',scheduleSyncMobileViewport);
+addEventListener('pageshow',scheduleSyncMobileViewport);
+if(window.visualViewport)visualViewport.addEventListener('resize',scheduleSyncMobileViewport);
+syncMobileViewport();
 
 // ---------- Вибро-отклик на ключевые события боя ----------
 if(typeof on==='function'){
@@ -260,6 +230,8 @@ if(typeof on==='function'){
 }
 
 // ---------- Предохранители от системных жестов, мешающих управлению ----------
+// Глобального preventDefault на touchmove здесь больше нет: он блокировал
+// прокрутку #menu/#shop. Джойстики и canvas защищены собственным touch-action:
+// none (style.css), этого достаточно, чтобы палец на них не скроллил страницу.
 document.addEventListener('gesturestart',e=>e.preventDefault());
 document.addEventListener('contextmenu',e=>e.preventDefault());
-addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
