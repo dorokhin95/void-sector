@@ -14,8 +14,8 @@ const audioAPI=(function(){
  const supported=typeof window!=='undefined'&&!!(window.AudioContext||window.webkitAudioContext);
 
  // ---------- Настройки громкости ----------
- const settings={master:.7,sfx:.85,music:.45,ui:.6,muted:false};
- function loadSettings(){try{const s=JSON.parse(localStorage.getItem(STORAGE_KEY));if(s&&typeof s==='object'){for(const k of ['master','sfx','music','ui'])if(typeof s[k]==='number'&&isFinite(s[k]))settings[k]=clamp01(s[k]);if(typeof s.muted==='boolean')settings.muted=s.muted}}catch{}}
+ const settings={master:.7,sfx:.85,music:.45,ui:.6,voice:.9,muted:false};
+ function loadSettings(){try{const s=JSON.parse(localStorage.getItem(STORAGE_KEY));if(s&&typeof s==='object'){for(const k of ['master','sfx','music','ui','voice'])if(typeof s[k]==='number'&&isFinite(s[k]))settings[k]=clamp01(s[k]);if(typeof s.muted==='boolean')settings.muted=s.muted}}catch{}}
  function saveSettings(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(settings))}catch{}}
  loadSettings();
  try{muted=settings.muted}catch{} // синхронизация с устаревшим глобальным флагом
@@ -23,7 +23,7 @@ const audioAPI=(function(){
  syncButton();
 
  // ---------- Узлы мастер-цепи ----------
- let master,compressor,sfxBus,musicBus,uiBus,engineBus,duckGain,pauseGain,reverbIn,convolver,whiteBuf,pinkBuf,panSupported=false;
+ let master,compressor,sfxBus,musicBus,uiBus,engineBus,voiceBus,voiceDuck,duckGain,pauseGain,reverbIn,convolver,whiteBuf,pinkBuf,panSupported=false;
  const shaperCache={};
  const now=()=>audio.currentTime;
  function makeNoise(seconds,pink){
@@ -65,8 +65,11 @@ const audioAPI=(function(){
    master=audio.createGain();compressor=audio.createDynamicsCompressor();
    compressor.threshold.value=-16;compressor.knee.value=14;compressor.ratio.value=4;compressor.attack.value=.004;compressor.release.value=.22;
    master.connect(compressor);compressor.connect(audio.destination);
-   sfxBus=audio.createGain();uiBus=audio.createGain();engineBus=audio.createGain();musicBus=audio.createGain();duckGain=audio.createGain();pauseGain=audio.createGain();
-   sfxBus.connect(master);uiBus.connect(master);engineBus.connect(master);musicBus.connect(duckGain);duckGain.connect(pauseGain);pauseGain.connect(master);
+   sfxBus=audio.createGain();uiBus=audio.createGain();engineBus=audio.createGain();musicBus=audio.createGain();voiceBus=audio.createGain();voiceDuck=audio.createGain();duckGain=audio.createGain();pauseGain=audio.createGain();
+   sfxBus.connect(master);uiBus.connect(master);engineBus.connect(master);voiceBus.connect(master);
+   // voiceDuck — приглушает музыку во время речи диалогов (отдельно от duckGain,
+   // который приглушают взрывы/EMP): musicBus -> voiceDuck -> duckGain -> pauseGain -> master.
+   musicBus.connect(voiceDuck);voiceDuck.connect(duckGain);duckGain.connect(pauseGain);pauseGain.connect(master);
    // Небольшая реверберация как посыл для взрывов, колоколов и боссов.
    reverbIn=audio.createGain();reverbIn.gain.value=.55;convolver=audio.createConvolver();convolver.buffer=makeImpulse(1.2);reverbIn.connect(convolver);convolver.connect(master);
    whiteBuf=makeNoise(2,false);pinkBuf=makeNoise(2,true);
@@ -80,7 +83,43 @@ const audioAPI=(function(){
   return audio}
  function applyVolumes(immediate){
   if(!audio)return;const t=now(),tc=immediate?.001:.03,set=(g,v)=>{try{g.gain.cancelScheduledValues(t);g.gain.setTargetAtTime(v,t,tc)}catch{}};
-  set(master,settings.muted?0:settings.master);set(sfxBus,settings.sfx*.9);set(engineBus,settings.sfx*.16);set(uiBus,settings.ui*.7);set(musicBus,settings.music*.75)}
+  set(master,settings.muted?0:settings.master);set(sfxBus,settings.sfx*.9);set(engineBus,settings.sfx*.16);set(uiBus,settings.ui*.7);set(musicBus,settings.music*.75);set(voiceBus,settings.muted?0:settings.voice)}
+
+ // ---------- Озвучка диалогов: предзагруженный LRU-кэш AudioBuffer'ов ----------
+ // Не используем HTMLAudio/новые AudioContext — один и тот же audio, декодированные
+ // буферы просто переигрываются через voiceBus. MAX_DECODED_VOICE_BUFFERS ограничивает
+ // память: 390 реплик разом никогда не декодируются, только те, что реально звучали.
+ const MAX_DECODED_VOICE_BUFFERS=12;
+ const voiceCache=new Map(),voiceInflight=new Map(),voiceOrder=[];
+ function voiceTouch(src){const i=voiceOrder.indexOf(src);if(i>=0)voiceOrder.splice(i,1);voiceOrder.push(src);while(voiceOrder.length>MAX_DECODED_VOICE_BUFFERS){const old=voiceOrder.shift();voiceCache.delete(old)}}
+ function preloadVoice(src){
+  if(!src)return Promise.resolve(null);
+  if(voiceCache.has(src)){voiceTouch(src);return Promise.resolve(voiceCache.get(src))}
+  if(voiceInflight.has(src))return voiceInflight.get(src);
+  ensureContext();if(!audio)return Promise.resolve(null);
+  const p=fetch(src).then(r=>r.arrayBuffer()).then(buf=>audio.decodeAudioData(buf)).then(decoded=>{
+   voiceCache.set(src,decoded);voiceTouch(src);voiceInflight.delete(src);return decoded;
+  }).catch(err=>{console.warn('voice: не удалось загрузить',src,err);voiceInflight.delete(src);return null});
+  voiceInflight.set(src,p);return p;
+ }
+ let voiceSource=null;
+ function duckForVoice(active){
+  if(!audio)return;const t=now(),g=voiceDuck.gain;
+  try{g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);
+   if(active)g.linearRampToValueAtTime(.55,t+.08);else g.linearRampToValueAtTime(1,t+.25)}catch{}
+ }
+ function stopVoice(){
+  if(voiceSource){try{voiceSource.onended=null;voiceSource.stop()}catch{}try{voiceSource.disconnect()}catch{}voiceSource=null;duckForVoice(false)}
+ }
+ async function playVoice(src,opts){
+  const o=opts||{};stopVoice();ensureContext();if(!audio||!src)return false;
+  const buf=await preloadVoice(src);if(!buf||voiceSource)return false; // voiceSource!=null: успели вызвать stopVoice()/новую playVoice() пока грузилось
+  try{
+   const s=audio.createBufferSource();s.buffer=buf;s.connect(voiceBus);
+   s.onended=()=>{if(voiceSource===s)voiceSource=null;duckForVoice(false);try{o.onended?.()}catch{}};
+   voiceSource=s;duckForVoice(true);s.start();return true;
+  }catch(err){console.warn('voice: playVoice упал',err);duckForVoice(false);return false}
+ }
 
  // ---------- Разблокировка контекста по жесту ----------
  // Слушатели НЕ снимаются после первой разблокировки: iOS может в любой
@@ -450,7 +489,7 @@ const audioAPI=(function(){
   getVolume(kind){return kind in settings?settings[kind]:0},
   setMuted,isMuted(){return settings.muted},
   toggleMuted(){setMuted(!settings.muted)},
-  play:playSfx,duck,unlock,debugAudio,
+  play:playSfx,duck,unlock,debugAudio,preloadVoice,playVoice,stopVoice,
   get context(){return audio},
   music:{get state(){return{bpm:music.bpm,bar:music.bar,step:music.step,act:music.act,layers:Object.fromEntries(Object.entries(music.layers).map(([k,l])=>[k,l.target]))}},setState(){/* внутренний: микс задаётся опросом состояния игры */}}
  };
