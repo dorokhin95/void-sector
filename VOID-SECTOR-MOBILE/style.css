@@ -61,6 +61,10 @@ canvas{touch-action:none;-webkit-user-select:none;user-select:none}
 .stick .ring,.stick .thumb{position:absolute;left:0;top:0;border-radius:50%;transform:translate(-50%,-50%)}
 .stick .ring{width:clamp(90px,23vw,134px);height:clamp(90px,23vw,134px);border:2px solid #98f8ed4f;background:radial-gradient(circle,#98f8ed17,transparent 70%);box-shadow:0 0 26px #98f8ed22 inset}
 .stick .thumb{width:clamp(40px,10.5vw,58px);height:clamp(40px,10.5vw,58px);background:radial-gradient(circle,#d8fff9,#98f8ed 55%,#2f8f7c 100%);box-shadow:0 2px 20px #98f8edb0}
+/* Правый джойстик больше не рисуется — правая половина экрана стала невидимым
+   relative-touchpad для прицела (createAimTouchpad в mobile-controls.js);
+   #aimZone (зона касаний) остаётся, скрыт только визуальный ring/thumb. */
+#aimStick{display:none!important}
 #aimStick .ring{border-color:#ffad604f}
 #aimStick .thumb{background:radial-gradient(circle,#ffedd8,#ffad60 55%,#a86a38 100%);box-shadow:0 2px 20px #ffad60b0}
 #aimStick.firing .ring{border-color:#ff6b6b90;box-shadow:0 0 34px #ff6b6b3c inset}

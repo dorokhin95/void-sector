@@ -6,23 +6,10 @@
 // режим, крупные кнопки способностей, вибро-отклик, переключатель стабилизации.
 // Загружается последним, поверх всей игровой логики и Этапов 2–3.
 
-// Мёртвые зоны раздельно: движение — как раньше, прицел — заметно меньше (сам
-// стик у прицела к тому же использует видимый, а не «математический» радиус,
-// см. visualStickRadius ниже, так что то же число ощущается ещё отзывчивее).
-// Допустимый диапазон AIM_DEADZONE после теста на устройстве: 0.05–0.10.
-const MOVE_DEADZONE=.16,AIM_DEADZONE=.08;
-const AIM_FULL_SWEEP_SECONDS=.80; // за столько секунд прицел проходит длинную сторону экрана при 100% отклонении стика; диапазон после теста: 0.65–1.0
-function mobileAimSpeed(){return Math.max(W,H)/AIM_FULL_SWEEP_SECONDS}
+// Мёртвая зона движения — только у левого джойстика (правый больше не стик,
+// см. createAimTouchpad ниже).
+const MOVE_DEADZONE=.16;
 function mobileStickRadius(){return Math.min(W,H)*.16+42}
-// Видимый радиус кольца джойстика — тот самый, что реально нарисован на экране.
-// getBoundingClientRect() тут не подходит: родительский .stick анимируется
-// transform:scale(.82→1), и радиус «плавал» бы вместе с этим переходом.
-// getComputedStyle().width — это layout-размер, transform на него не влияет.
-function visualStickRadius(el){
- const ring=el?.querySelector('.ring');
- const width=ring?parseFloat(getComputedStyle(ring).width):NaN;
- return Number.isFinite(width)?width/2:60;
-}
 function vibrate(pattern){try{navigator.vibrate?.(pattern)}catch{}}
 
 // ---------- Виртуальный джойстик на паре Pointer Events ----------
@@ -88,20 +75,56 @@ function createStick(zoneId,stickId,opts={}){
  return state;
 }
 const moveStick=createStick('moveZone','moveStick',{deadzone:MOVE_DEADZONE});
-// Огонь выключаем синхронно тут же при отпускании/отмене — не дожидаясь
-// следующего тика applyMobileAim(), иначе между событием и пересчётом кадра
-// остаётся микроскопическое окно, где firing формально ещё true. Радиус — видимый
-// (см. visualStickRadius), а не «математический» mobileStickRadius(): раньше они
-// расходились примерно вдвое (~67px видимых против ~104–111px рабочих), из-за
-// чего почти четверть хода стика уходила в фактическую мёртвую зону.
-const aimStick=createStick('aimZone','aimStick',{
- deadzone:AIM_DEADZONE,
- radius:()=>visualStickRadius(document.getElementById('aimStick')),
- onEnd:()=>{firing=false}
-});
+
+// ---------- Прицел: relative touchpad (не джойстик) ----------
+// Правая половина экрана ведёт себя как тачпад ноутбука: pointerdown НИЧЕГО не
+// переносит и не запоминает, кроме стартовой точки пальца; pointermove двигает
+// прицел РОВНО на дельту движения пальца (1 CSS px пальца ≈ AIM_TOUCH_SENSITIVITY
+// px прицела) — без деадзоны, без радиуса, без скорости/dt, без кривой отклика и
+// без возврата к центру. Отпустили — прицел остаётся там, где был; коснулись в
+// другом месте — палец просто начинает новый отсчёт дельты оттуда, прицел не
+// прыгает. Стрельба идёт всё время, пока палец на экране, независимо от того,
+// движется он или нет.
+const AIM_TOUCH_SENSITIVITY=1.0; // после теста на устройстве допустимы только 0.85 / 1.0 / 1.15
+function createAimTouchpad(zoneId){
+ const zone=document.getElementById(zoneId);
+ const state={active:false,pointerId:null,lastX:0,lastY:0};
+ function begin(e){
+  if(mode!=='play'||state.active)return;
+  state.active=true;state.pointerId=e.pointerId;
+  // КРИТИЧНО: только запоминаем позицию пальца, mx/my здесь не меняем —
+  // никакого «прыжка» прицела к месту касания.
+  state.lastX=e.clientX;state.lastY=e.clientY;
+  try{zone.setPointerCapture(e.pointerId)}catch{}
+  firing=true;
+  if(e.cancelable)e.preventDefault();
+ }
+ function move(e){
+  if(!state.active||e.pointerId!==state.pointerId)return;
+  const dx=e.clientX-state.lastX,dy=e.clientY-state.lastY;
+  state.lastX=e.clientX;state.lastY=e.clientY;
+  mx=clamp(mx+dx*AIM_TOUCH_SENSITIVITY,0,W);
+  my=clamp(my+dy*AIM_TOUCH_SENSITIVITY,0,H);
+  if(e.cancelable)e.preventDefault();
+ }
+ function end(e){
+  if(!state.active||(e&&e.pointerId!==state.pointerId))return;
+  state.active=false;state.pointerId=null;
+  firing=false;
+ }
+ zone.addEventListener('pointerdown',begin);
+ zone.addEventListener('pointermove',move);
+ zone.addEventListener('pointerup',end);
+ zone.addEventListener('pointercancel',end);
+ zone.addEventListener('lostpointercapture',end);
+ state.reset=()=>{state.active=false;state.pointerId=null;firing=false};
+ return state;
+}
+const aimPad=createAimTouchpad('aimZone');
+
 // Смена вкладки/сворачивание — сбрасываем оба стика и стрельбу, чтобы палец,
 // снятый вне страницы, не оставил джойстик залипшим во «нажатом» состоянии.
-function resetAllMobileSticks(){moveStick.reset();aimStick.reset();firing=false}
+function resetAllMobileSticks(){moveStick.reset();aimPad.reset();firing=false}
 addEventListener('blur',resetAllMobileSticks);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)resetAllMobileSticks()});
 // Отдельный класс на время боя: включает touch-action:none на html/body (ниже,
@@ -123,35 +146,15 @@ function applyMobileMove(){
   keys.KeyD=keys.KeyA=keys.KeyW=keys.KeyS=false;
  }
 }
-// ---------- Прицел и огонь: правый стик задаёт СКОРОСТЬ смещения прицела, а не
-// абсолютную позицию от опорной точки. Это убирает скачки в принципе: сколько бы
-// раз ни отпускали и не перехватывали стик (даже удерживая одновременно левый),
-// прицел просто продолжает копить смещение с текущего места — прыгать ему некуда,
-// потому что нет «опорной точки», которая могла бы сама сместиться. Не зависит от
-// движения корабля, поэтому манёвр и стрельба не мешают друг другу. ----------
-function applyMobileAim(dt){
- if(mode!=='play'){aimStick.el?.classList.remove('firing');return}
- if(aimStick.mag>0){
-  // Строго линейно: mag уже прошёл ремап мёртвой зоны в createStick(), здесь —
-  // без дополнительных кривых/сглаживания, чтобы не путать калибровку радиуса/
-  // deadzone с формой отклика. W/H — реальный игровой вьюпорт (учитывает
-  // Telegram viewportStableHeight через getAppViewport в game.js), а не
-  // innerWidth/innerHeight, которые внутри Telegram могут быть больше видимой
-  // области.
-  const speed=mobileAimSpeed();
-  mx=clamp(mx+aimStick.x*speed*dt,0,W);
-  my=clamp(my+aimStick.y*speed*dt,0,H);
-  firing=true;aimStick.el?.classList.add('firing');
- }else{
-  firing=false;aimStick.el?.classList.remove('firing');
- }
-}
-// Оборачиваем update() тем же приёмом, что использует весь остальной код (game.js →
-// stage1.js → events.js уже переопределяют update по цепочке).
+// Прицел (mx,my) больше не пересчитывается каждый тик симуляции — touchpad
+// выше двигает его напрямую из pointermove, синхронно с событием. update()
+// оборачиваем тем же приёмом, что использует весь остальной код (game.js →
+// stage1.js → events.js уже переопределяют update по цепочке), но теперь здесь
+// только движение корабля.
 (function wrapUpdate(){
  const baseUpdate=update;
  update=function(dt){
-  applyMobileMove();applyMobileAim(dt);
+  applyMobileMove();
   baseUpdate(dt);
   syncMobileHUD();
  };
@@ -188,7 +191,7 @@ function syncMobileHUD(){
 if(typeof on==='function')on('modeChange',({to})=>{
  const tc=document.getElementById('touchControls');
  if(tc)tc.hidden=to!=='play';
- if(to!=='play'){moveStick.reset();aimStick.reset()}
+ if(to!=='play'){moveStick.reset();aimPad.reset()}
 });
 
 // ---------- Полноэкранный режим ----------
