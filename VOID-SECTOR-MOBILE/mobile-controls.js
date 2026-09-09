@@ -7,7 +7,7 @@
 // Загружается последним, поверх всей игровой логики и Этапов 2–3.
 
 const MOBILE_DEADZONE=.16;
-function mobileAimRadius(){return Math.min(420,Math.min(innerWidth,innerHeight)*.6)}
+function mobileAimSpeed(){return Math.min(innerWidth,innerHeight)*2.4}
 function mobileStickRadius(){return Math.min(innerWidth,innerHeight)*.16+42}
 function vibrate(pattern){try{navigator.vibrate?.(pattern)}catch{}}
 
@@ -53,10 +53,7 @@ function createStick(zoneId,stickId,onBegin){
  return state;
 }
 const moveStick=createStick('moveZone','moveStick');
-// Точка отсчёта прицела фиксируется в момент касания (а не пересчитывается каждый
-// кадр), иначе при одновременном манёвре корабль сдвигается на экране и прицел
-// «плывёт» вместе с ним. Обновляется заново только на новое касание.
-const aimStick=createStick('aimZone','aimStick',state=>{state.anchor=project(px,py,3)});
+const aimStick=createStick('aimZone','aimStick');
 
 // ---------- Движение: аналоговый джойстик транслируется в цифровые WASD-флаги,
 // как в оригинальной схеме управления (тяга постоянна, направление — по стику). ----------
@@ -67,16 +64,18 @@ function applyMobileMove(){
   keys.KeyD=keys.KeyA=keys.KeyW=keys.KeyS=false;
  }
 }
-// ---------- Прицел и огонь: правый стик двигает виртуальный прицел относительно
-// точки, зафиксированной при касании, и включает стрельбу, пока отклонён дальше
-// мёртвой зоны. Движение к цели сглажено, чтобы повторное касание в чуть иной
-// точке экрана не давало видимый скачок прицела. ----------
+// ---------- Прицел и огонь: правый стик задаёт СКОРОСТЬ смещения прицела, а не
+// абсолютную позицию от опорной точки. Это убирает скачки в принципе: сколько бы
+// раз ни отпускали и не перехватывали стик (даже удерживая одновременно левый),
+// прицел просто продолжает копить смещение с текущего места — прыгать ему некуда,
+// потому что нет «опорной точки», которая могла бы сама сместиться. Не зависит от
+// движения корабля, поэтому манёвр и стрельба не мешают друг другу. ----------
 function applyMobileAim(dt){
  if(mode!=='play'){aimStick.el?.classList.remove('firing');return}
  if(aimStick.mag>0){
-  const anchor=aimStick.anchor||project(px,py,3),R=mobileAimRadius();
-  const tx=anchor.x+aimStick.x*R,ty=anchor.y+aimStick.y*R;
-  const k=1-Math.exp(-16*dt);mx+=(tx-mx)*k;my+=(ty-my)*k;
+  const speed=mobileAimSpeed();
+  mx=clamp(mx+aimStick.x*speed*dt,0,innerWidth);
+  my=clamp(my+aimStick.y*speed*dt,0,innerHeight);
   firing=true;aimStick.el?.classList.add('firing');
  }else{
   firing=false;aimStick.el?.classList.remove('firing');
@@ -186,6 +185,22 @@ const rotateContinueBtn=document.getElementById('rotateContinue');
 if(rotateContinueBtn)rotateContinueBtn.onclick=()=>{mobileDismissedPortrait=true;updateRotateHint()};
 addEventListener('resize',updateRotateHint);
 addEventListener('orientationchange',()=>setTimeout(updateRotateHint,80));
+
+// ---------- Пересчёт кадра при повороте/изменении вьюпорта ----------
+// iOS в режиме «домашнего экрана» (установленного PWA) иногда не досчитывает
+// canvas правильно при повороте в альбомную: window.innerWidth/innerHeight сразу
+// после orientationchange могут отдавать старые значения (известная задержка
+// WKWebView), а visualViewport иногда получает событие resize, когда обычный
+// window resize не срабатывает вовсе. Поэтому пересчитываем несколько раз с
+// небольшой задержкой и слушаем оба источника.
+function forceReflow(){try{gfx.resize()}catch{}}
+addEventListener('orientationchange',()=>{forceReflow();setTimeout(forceReflow,120);setTimeout(forceReflow,350);setTimeout(forceReflow,700)});
+addEventListener('resize',forceReflow);
+if(window.visualViewport){visualViewport.addEventListener('resize',forceReflow);visualViewport.addEventListener('scroll',forceReflow)}
+if(window.matchMedia){
+ const mq=matchMedia('(orientation:landscape)');
+ mq.addEventListener?.('change',()=>{forceReflow();setTimeout(forceReflow,150);setTimeout(forceReflow,400)});
+}
 updateRotateHint();
 
 // ---------- Вибро-отклик на ключевые события боя ----------
