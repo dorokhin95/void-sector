@@ -41,6 +41,11 @@ body.emp #hud{filter:contrast(1.25) saturate(.6)}
 html{height:100%;overflow:hidden}
 html,body{overscroll-behavior:none}
 body{position:fixed;inset:0;width:100%;height:100%}
+/* Только на время боя (класс переключает JS — syncGameplayGestureLock в
+   mobile-controls.js): блокирует системные жесты (скролл/свайп-закрытие
+   Telegram), пока джойстики активны. Не делаем это постоянным на body —
+   иначе снова ломается скролл #menu/.hangar вне боя. */
+html.gameplay-gesture-lock,html.gameplay-gesture-lock body{touch-action:none;overscroll-behavior:none}
 canvas{touch-action:none;-webkit-user-select:none;user-select:none}
 #fullscreen{font-size:17px;line-height:1;padding:11px 15px}
 #stab[aria-pressed=false]{color:#ffb27a}

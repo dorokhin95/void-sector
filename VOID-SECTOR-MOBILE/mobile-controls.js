@@ -32,6 +32,10 @@ function createStick(zoneId,stickId,onBegin,onEnd){
   // иначе кольцо джойстика рисуется со сдвигом от пальца.
   el.style.left=(state.ox-r.left)+'px';el.style.top=(state.oy-r.top)+'px';el.classList.add('show');
   try{zone.setPointerCapture(e.pointerId)}catch{}
+  // Явно гасим системный жест (скролл/свайп-закрытие Telegram) прямо на уровне
+  // Pointer Events — это надёжнее, чем полагаться только на touch-action, и не
+  // требует stopPropagation (который сломал бы что-то ещё в обработке событий).
+  if(e.cancelable)e.preventDefault();
   onBegin?.(state);
   track(e);
  }
@@ -48,6 +52,7 @@ function createStick(zoneId,stickId,onBegin,onEnd){
   // мёртвой зоне) — это отдельно от геймплейного значения выше.
   const visDist=Math.min(dist,R),vx=dist>0?dx/dist*visDist:0,vy=dist>0?dy/dist*visDist:0;
   if(thumb)thumb.style.transform='translate(-50%,-50%) translate('+vx+'px,'+vy+'px)';
+  if(e.cancelable)e.preventDefault();
  }
  function end(e){
   if(!state.active||(e&&e.pointerId!==state.pointerId))return;
@@ -74,6 +79,15 @@ const aimStick=createStick('aimZone','aimStick',null,()=>{firing=false});
 function resetAllMobileSticks(){moveStick.reset();aimStick.reset();firing=false}
 addEventListener('blur',resetAllMobileSticks);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)resetAllMobileSticks()});
+// Отдельный класс на время боя: включает touch-action:none на html/body (ниже,
+// style.css), а не постоянно — иначе снова сломается скролл меню/ангара.
+function syncGameplayGestureLock(targetMode=mode){document.documentElement.classList.toggle('gameplay-gesture-lock',targetMode==='play')}
+syncGameplayGestureLock();
+if(typeof on==='function')on('modeChange',({to})=>syncGameplayGestureLock(to));
+// WebView-подстраховка поверх Pointer Events (некоторые версии WebKit всё ещё
+// прокручивают страницу по touchmove, даже если preventDefault уже был на
+// pointerdown/pointermove) — работает строго только во время боя.
+document.addEventListener('touchmove',e=>{if(mode==='play'&&e.cancelable)e.preventDefault()},{passive:false,capture:true});
 
 // ---------- Движение: аналоговый джойстик транслируется в цифровые WASD-флаги,
 // как в оригинальной схеме управления (тяга постоянна, направление — по стику). ----------
