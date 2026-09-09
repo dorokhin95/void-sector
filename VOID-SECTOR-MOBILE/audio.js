@@ -39,9 +39,28 @@ const audioAPI=(function(){
   return buf}
  function shaperCurve(k){if(shaperCache[k])return shaperCache[k];const n=1024,c=new Float32Array(n);for(let i=0;i<n;i++){const x=i/(n-1)*2-1;c[i]=(1+k)*x/(1+k*Math.abs(x))}return shaperCache[k]=c}
 
+ // iOS: сообщаем WebKit, что это плеер/игра ("playback"), а не голосовой чат
+ // (ambient/transient/transient-solo) — иначе звук молчит при включённом
+ // Silent Mode. navigator.audioSession — экспериментальный API, есть не
+ // везде, поэтому вызывается best-effort перед каждым (пере)запуском звука.
+ function configureAudioSession(){
+  try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch{}
+ }
+ // Временная диагностика для проверки на iPhone — см. журнал [AUDIO] в консоли.
+ function debugAudio(tag){
+  console.debug('[AUDIO]',tag,{
+   supported,
+   context:audio?.state||'none',
+   muted:settings.muted,
+   master:settings.master,
+   session:navigator.audioSession?.type||'unsupported',
+   visibility:document.visibilityState
+  });
+ }
  function ensureContext(){
   if(audio||!supported)return audio;
   try{
+   configureAudioSession();
    const AC=window.AudioContext||window.webkitAudioContext;audio=new AC({latencyHint:'interactive'});
    master=audio.createGain();compressor=audio.createDynamicsCompressor();
    compressor.threshold.value=-16;compressor.knee.value=14;compressor.ratio.value=4;compressor.attack.value=.004;compressor.release.value=.22;
@@ -55,18 +74,39 @@ const audioAPI=(function(){
    applyVolumes(true);
    setupMusic();
    if(!pollTimer)pollTimer=setInterval(poll,100);
-   audio.onstatechange=()=>{if(audio.state==='running')unlockDone()};
+   audio.onstatechange=()=>debugAudio('statechange');
   }catch(err){console.warn('audio: инициализация не удалась',err);audio=null}
+  debugAudio('ensureContext');
   return audio}
  function applyVolumes(immediate){
   if(!audio)return;const t=now(),tc=immediate?.001:.03,set=(g,v)=>{try{g.gain.cancelScheduledValues(t);g.gain.setTargetAtTime(v,t,tc)}catch{}};
   set(master,settings.muted?0:settings.master);set(sfxBus,settings.sfx*.9);set(engineBus,settings.sfx*.16);set(uiBus,settings.ui*.7);set(musicBus,settings.music*.75)}
 
  // ---------- Разблокировка контекста по жесту ----------
- let unlocked=false;
- function unlock(){try{ensureContext();if(audio&&audio.state==='suspended')audio.resume().catch(()=>{})}catch{}}
- function unlockDone(){if(unlocked)return;unlocked=true;for(const ev of ['pointerdown','keydown','click','touchstart'])document.removeEventListener(ev,unlock,true)}
- try{for(const ev of ['pointerdown','keydown','click','touchstart'])document.addEventListener(ev,unlock,true)}catch{}
+ // Слушатели НЕ снимаются после первой разблокировки: iOS может в любой
+ // момент перевести AudioContext в 'suspended'/'interrupted' (звонок, Siri,
+ // сворачивание Telegram), а восстановить его способен только следующий
+ // настоящий жест пользователя. unlock() дёшев, пока audio.state==='running'
+ // (resume() не вызывается вовсе), так что держать обработчики постоянно
+ // ничего не стоит и не подлежит "once"-очистке.
+ async function unlock(){
+  try{
+   configureAudioSession();
+   ensureContext();
+   if(!audio)return false;
+   if(audio.state==='suspended'||audio.state==='interrupted'){
+    try{await audio.resume()}catch{}
+    debugAudio('resume');
+   }
+   return audio.state==='running';
+  }catch{return false}
+ }
+ try{for(const ev of ['pointerdown','keydown','touchstart'])document.addEventListener(ev,unlock,{capture:true,passive:true})}catch{}
+ // Возврат из фона/Telegram minimize/блокировки экрана — best effort: если iOS
+ // всё же требует настоящего user activation, следующий pointerdown его даст.
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden){configureAudioSession();unlock();debugAudio('visibilitychange')}});
+ addEventListener('pageshow',()=>{configureAudioSession();unlock()});
+ addEventListener('focus',()=>{configureAudioSession();unlock()});
 
  // ---------- Управление голосами (ограничение одновременных эффектов) ----------
  const voices=[];
@@ -385,9 +425,11 @@ const audioAPI=(function(){
  // ---------- Звуки интерфейса: делегированные слушатели ----------
  let lastHover=null;
  try{
-  document.addEventListener('click',e=>{
+  document.addEventListener('click',async e=>{
    const b=e.target&&e.target.closest?e.target.closest('button'):null;if(!b||b.disabled)return;
    if(b.closest('#hud')||b.id==='fire'||b.dataset.up!==undefined||b.id==='pause'||b.id==='resume')return; // игровые кнопки и покупки озвучены событиями
+   await unlock(); // первый тап по кнопке — частый первый жест на iOS, гарантируем контекст перед звуком
+   if(audio?.state!=='running')return;
    if(['start','continue','loadCampaign','retryLevel','restart'].includes(b.id))playSfx('uiConfirm');
    else if(b.id==='exit')playSfx('uiBack');
    else playSfx('uiClick')});
@@ -397,7 +439,7 @@ const audioAPI=(function(){
  }catch{}
 
  // ---------- Кнопка звука и замена устаревшего tone() ----------
- function setMuted(flag){settings.muted=!!flag;try{muted=settings.muted}catch{}saveSettings();applyVolumes(false);syncButton();if(!settings.muted)unlock()}
+ function setMuted(flag){settings.muted=!!flag;try{muted=settings.muted}catch{}saveSettings();applyVolumes(false);syncButton();if(!settings.muted){configureAudioSession();unlock()}}
  try{const b=document.getElementById('sound');if(b)b.onclick=()=>setMuted(!settings.muted)}catch{}
  try{tone=function(){}}catch{}
 
@@ -408,7 +450,7 @@ const audioAPI=(function(){
   getVolume(kind){return kind in settings?settings[kind]:0},
   setMuted,isMuted(){return settings.muted},
   toggleMuted(){setMuted(!settings.muted)},
-  play:playSfx,duck,unlock,
+  play:playSfx,duck,unlock,debugAudio,
   get context(){return audio},
   music:{get state(){return{bpm:music.bpm,bar:music.bar,step:music.step,act:music.act,layers:Object.fromEntries(Object.entries(music.layers).map(([k,l])=>[k,l.target]))}},setState(){/* внутренний: микс задаётся опросом состояния игры */}}
  };

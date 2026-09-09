@@ -61,7 +61,15 @@
  function syncViewportSafe(){try{syncMobileViewport?.()}catch{}}
  tg.onEvent?.('viewportChanged',event=>{if(event?.isStateStable!==false){syncTelegramSwipeBehavior();syncViewportSafe()}});
  tg.onEvent?.('fullscreenChanged',()=>{syncTelegramSwipeBehavior();syncViewportSafe()});
- tg.onEvent?.('activated',()=>{syncTelegramSwipeBehavior();syncViewportSafe()});
+ // activated — мини-приложение вернулось из фона. Telegram может тем временем
+ // прервать WebAudio (AudioContext уходит в suspended/interrupted) — явно
+ // просим его возобновиться здесь же, не дожидаясь следующего касания.
+ // Никогда не закрываем и не пересоздаём AudioContext на deactivated — это
+ // сделало бы звук недоступным вплоть до полной перезагрузки страницы.
+ tg.onEvent?.('activated',()=>{
+  syncTelegramSwipeBehavior();syncViewportSafe();
+  try{audioAPI?.unlock?.();audioAPI?.debugAudio?.('telegram-activated')}catch{}
+ });
  // deactivated — мини-приложение временно ушло в фон (например, свернули штатным
  // способом через шапку Telegram и снова открыли). Сбрасываем оба джойстика и
  // стрельбу — как при blur/visibilitychange в mobile-controls.js — чтобы палец,
