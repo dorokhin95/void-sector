@@ -1,0 +1,57 @@
+{
+ "model": {
+  "id": "v5_cis_base",
+  "language": "ru",
+  "package_url": "https://models.silero.ai/models/tts/ru/v5_cis_base.pt",
+  "sample_rates_supported": [8000, 24000, 48000],
+  "master_sample_rate": 24000,
+  "requires_manual_stress": true,
+  "stress_marker": "+",
+  "note": "Verified against snakers4/silero-models models.yml + examples_tts_cis.ipynb on 2026-09-09. Loaded via `from silero import silero_tts; model,_=silero_tts(language='ru',speaker='v5_cis_base')`. model.speakers lists every available voice id."
+ },
+ "characters": {
+  "spectre": {"requested": "ru_bel_dmitriy", "resolved": "ru_dmitriy", "fallback": false},
+  "voronova": {"requested": "ru_bel_larisa", "resolved": "ru_ekaterina", "fallback": true,
+   "reason": "model.speakers has no 'ru_larisa' — 'bel_larisa' exists only as the native-Belarusian voice, with no Russian-language ('ru_') variant shipped in this model release. No other ru_ speaker shares Larisa's Belarusian (East Slavic) origin, so the nearest still-unused ru_ voice was picked by hand for a mature/authoritative female timbre distinct from Leya's ru_ramilia."},
+  "leya": {"requested": "ru_bak_ramilia", "resolved": "ru_ramilia", "fallback": false},
+  "markov": {"requested": "ru_bel_anatoliy", "resolved": "ru_roman", "fallback": true,
+   "reason": "model.speakers has no 'ru_anatoliy' (same gap as Larisa above — 'bel_anatoliy' has no 'ru_' variant). 'ru_roman' was chosen because its native origin is Ukrainian (bel/ukr are both East Slavic, the closest available linguistic family to Belarusian), keeping 'ru_igor' free as a spare male voice."},
+  "unknown": {"requested": "ru_tat_marat", "resolved": "ru_marat", "fallback": false}
+ },
+ "normalization": {
+  "guillemets": "stripped (« » removed, enclosed text kept as-is)",
+  "ellipsis": "'...' and '…' -> ', ' (comma pause)",
+  "dash": "'--' / '—' / '–' -> ', ' (comma pause)",
+  "pronunciationDict": "tools/voice/pronunciation.json, longest key first, \\b-bounded, case-insensitive",
+  "unsafeChars": "anything outside [0-9A-Za-zА-Яа-яЁё' +.,!?:;-] stripped after dictionary substitution",
+  "trailingPunctuation": "a '.' is appended if the normalized text doesn't already end in . ! or ?"
+ },
+ "stress": {
+  "package": "silero-stress",
+  "pypi": "silero-stress==1.4",
+  "call": "load_accentor(lang='ru') -> accentor(text) -> text with '+' before stressed vowels",
+  "faultTolerant": "try/except around accentor(); on failure the unstressed normalized text is used and the error is logged in voice-build-report.json — never blocks the rest of the build",
+  "verifiedPreStressed": "words already containing '+' (from pronunciation.json) are left untouched by accentor() and do not get double-marked (empirically verified 2026-09-09)"
+ },
+ "radio": {
+  "highpassHz": 180,
+  "lowpassHz": 4200,
+  "presence": {"hz": 1800, "gainDb": 2},
+  "compressionRatio": 3,
+  "targetLUFS": -16,
+  "truePeakDb": -1,
+  "note": "applied to ALL 391 lines via ffmpeg (highpass, lowpass, a peaking EQ bump at 1800Hz, acompressor, loudnorm). radioOpen/radioClose stay separate existing SFX (audio.js), not baked into these files."
+ },
+ "unknownRadio": {
+  "who": "unknown",
+  "extraLowpassHz": 3500,
+  "extraCompressionRatio": 4,
+  "saturationDriveDb": 2,
+  "note": "applied ON TOP of the standard radio chain above, only for the 'unknown'/Sokolov character — deliberately light (no pitch shift / vocoder / robot effect), speech stays fully intelligible."
+ },
+ "output": {
+  "masterFormat": "WAV mono 24000 Hz (temporary, not committed)",
+  "productionFormat": "MP3 mono 24 kHz 48 kbps (falls back to 48 kHz mono 48 kbps if the encoder rejects 24 kHz)",
+  "sizeTargetMB": 10
+ }
+}

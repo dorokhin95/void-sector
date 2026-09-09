@@ -1,0 +1,6 @@
+# VOID SECTOR voice pipeline — pinned exact versions (see README.md "Reproducibility").
+# CPU-only torch is enough (no GPU required); pipeline was built and run on torch 2.13.0+cpu.
+torch==2.13.0
+silero==0.5.5
+silero-stress==1.4
+omegaconf==2.3.1

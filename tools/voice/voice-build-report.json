@@ -1,0 +1,93 @@
+{
+ "entries": 391,
+ "covered": 391,
+ "uniqueAssets": 390,
+ "missing": [],
+ "failed": [],
+ "warnings": [],
+ "reviewRecommended": [
+  {
+   "reason": "unknown-token",
+   "token": "EMP-",
+   "count": 3,
+   "examples": [
+    "afe81f10",
+    "fd426018",
+    "04b38672"
+   ]
+  },
+  {
+   "reason": "unknown-token",
+   "token": "R",
+   "count": 1,
+   "examples": [
+    "f6770a48"
+   ]
+  },
+  {
+   "reason": "unknown-token",
+   "token": "E",
+   "count": 1,
+   "examples": [
+    "97ff8ac0"
+   ]
+  },
+  {
+   "reason": "unknown-token",
+   "token": "Shift",
+   "count": 1,
+   "examples": [
+    "97ff8ac0"
+   ]
+  },
+  {
+   "reason": "unknown-token",
+   "token": "2260",
+   "count": 1,
+   "examples": [
+    "b21870a0"
+   ]
+  },
+  {
+   "reason": "unknown-token",
+   "token": "3",
+   "count": 1,
+   "examples": [
+    "6cf69938"
+   ]
+  },
+  {
+   "reason": "unknown-token",
+   "token": "1",
+   "count": 1,
+   "examples": [
+    "19f58b00"
+   ]
+  },
+  {
+   "reason": "unknown-token",
+   "token": "4",
+   "count": 1,
+   "examples": [
+    "19f58b00"
+   ]
+  }
+ ],
+ "totalDuration": 1714.4,
+ "totalBytes": 10517352,
+ "speakerFallbacks": {
+  "voronova": {
+   "requested": "ru_bel_larisa",
+   "resolved": "ru_ekaterina",
+   "fallback": true,
+   "reason": "model.speakers has no 'ru_larisa' — 'bel_larisa' exists only as the native-Belarusian voice, with no Russian-language ('ru_') variant shipped in this model release. No other ru_ speaker shares Larisa's Belarusian (East Slavic) origin, so the nearest still-unused ru_ voice was picked by hand for a mature/authoritative female timbre distinct from Leya's ru_ramilia."
+  },
+  "markov": {
+   "requested": "ru_bel_anatoliy",
+   "resolved": "ru_roman",
+   "fallback": true,
+   "reason": "model.speakers has no 'ru_anatoliy' (same gap as Larisa above — 'bel_anatoliy' has no 'ru_' variant). 'ru_roman' was chosen because its native origin is Ukrainian (bel/ukr are both East Slavic, the closest available linguistic family to Belarusian), keeping 'ru_igor' free as a spare male voice."
+  }
+ },
+ "modelId": "v5_cis_base"
+}
