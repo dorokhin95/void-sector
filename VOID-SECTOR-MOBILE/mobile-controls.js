@@ -7,15 +7,16 @@
 // Загружается последним, поверх всей игровой логики и Этапов 2–3.
 
 const MOBILE_DEADZONE=.16;
-function mobileAimSpeed(){return Math.max(innerWidth,innerHeight)*2.6}
+function mobileAimSpeed(){return Math.min(innerWidth,innerHeight)*2.4}
 function mobileStickRadius(){return Math.min(innerWidth,innerHeight)*.16+42}
 function vibrate(pattern){try{navigator.vibrate?.(pattern)}catch{}}
 
 // ---------- Виртуальный джойстик на паре Pointer Events ----------
-// Возвращает объект состояния {x,y,mag} — нормализованный вектор -1..1 и его длина
-// после мёртвой зоны; используется каждый тик симуляции, независимо от частоты
-// событий указателя.
-function createStick(zoneId,stickId,onBegin){
+// Возвращает объект состояния {x,y,mag} — направление×магнитуда после мёртвой
+// зоны (0 сразу за порогом, не с MOBILE_DEADZONE — иначе именно на границе
+// возникает скачок) и её длина; читается каждый тик симуляции, независимо от
+// частоты событий указателя.
+function createStick(zoneId,stickId,onBegin,onEnd){
  const zone=document.getElementById(zoneId),el=document.getElementById(stickId);
  if(!zone||!el)return{x:0,y:0,mag:0,active:false,reset(){}};
  const thumb=el.querySelector('.thumb');
@@ -26,34 +27,53 @@ function createStick(zoneId,stickId,onBegin){
   const r=zone.getBoundingClientRect(),margin=mobileStickRadius()+14;
   state.ox=clamp(e.clientX,r.left+margin,r.right-margin);
   state.oy=clamp(e.clientY,r.top+margin,r.bottom-margin);
-  el.style.left=state.ox+'px';el.style.top=state.oy+'px';el.classList.add('show');
+  // .stick — position:absolute внутри .stickZone, поэтому left/top должны быть
+  // заданы относительно зоны (r.left/r.top), а не в координатах вьюпорта —
+  // иначе кольцо джойстика рисуется со сдвигом от пальца.
+  el.style.left=(state.ox-r.left)+'px';el.style.top=(state.oy-r.top)+'px';el.classList.add('show');
   try{zone.setPointerCapture(e.pointerId)}catch{}
   onBegin?.(state);
   track(e);
  }
  function track(e){
   if(!state.active||e.pointerId!==state.pointerId)return;
-  const R=mobileStickRadius();let dx=e.clientX-state.ox,dy=e.clientY-state.oy,dist=Math.hypot(dx,dy);
-  if(dist>R){dx=dx/dist*R;dy=dy/dist*R;dist=R}
-  const mag=dist/R;
-  if(mag>MOBILE_DEADZONE){state.x=dx/R;state.y=dy/R;state.mag=mag}else{state.x=0;state.y=0;state.mag=0}
-  if(thumb)thumb.style.transform='translate(-50%,-50%) translate('+dx+'px,'+dy+'px)';
+  const R=mobileStickRadius(),dx=e.clientX-state.ox,dy=e.clientY-state.oy,dist=Math.hypot(dx,dy);
+  const raw=Math.min(1,dist/R);
+  if(raw<=MOBILE_DEADZONE){state.x=0;state.y=0;state.mag=0}
+  else{
+   const mag=(raw-MOBILE_DEADZONE)/(1-MOBILE_DEADZONE),ux=dist>0?dx/dist:0,uy=dist>0?dy/dist:0;
+   state.x=ux*mag;state.y=uy*mag;state.mag=mag;
+  }
+  // Визуальный «стик» всегда следует за пальцем 1:1 в пределах кольца (даже в
+  // мёртвой зоне) — это отдельно от геймплейного значения выше.
+  const visDist=Math.min(dist,R),vx=dist>0?dx/dist*visDist:0,vy=dist>0?dy/dist*visDist:0;
+  if(thumb)thumb.style.transform='translate(-50%,-50%) translate('+vx+'px,'+vy+'px)';
  }
  function end(e){
   if(!state.active||(e&&e.pointerId!==state.pointerId))return;
   state.active=false;state.pointerId=null;state.x=0;state.y=0;state.mag=0;
   el.classList.remove('show');el.classList.remove('firing');
   if(thumb)thumb.style.transform='translate(-50%,-50%)';
+  onEnd?.(state);
  }
  zone.addEventListener('pointerdown',begin);
  zone.addEventListener('pointermove',track);
  zone.addEventListener('pointerup',end);
  zone.addEventListener('pointercancel',end);
+ zone.addEventListener('lostpointercapture',end);
  state.reset=()=>end({pointerId:state.pointerId});
  return state;
 }
 const moveStick=createStick('moveZone','moveStick');
-const aimStick=createStick('aimZone','aimStick');
+// Огонь выключаем синхронно тут же при отпускании/отмене — не дожидаясь
+// следующего тика applyMobileAim(), иначе между событием и пересчётом кадра
+// остаётся микроскопическое окно, где firing формально ещё true.
+const aimStick=createStick('aimZone','aimStick',null,()=>{firing=false});
+// Смена вкладки/сворачивание — сбрасываем оба стика и стрельбу, чтобы палец,
+// снятый вне страницы, не оставил джойстик залипшим во «нажатом» состоянии.
+function resetAllMobileSticks(){moveStick.reset();aimStick.reset();firing=false}
+addEventListener('blur',resetAllMobileSticks);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)resetAllMobileSticks()});
 
 // ---------- Движение: аналоговый джойстик транслируется в цифровые WASD-флаги,
 // как в оригинальной схеме управления (тяга постоянна, направление — по стику). ----------
@@ -73,13 +93,9 @@ function applyMobileMove(){
 function applyMobileAim(dt){
  if(mode!=='play'){aimStick.el?.classList.remove('firing');return}
  if(aimStick.mag>0){
-  // Кривая отклика: даже небольшое отклонение стика даёт заметную долю
-  // максимальной скорости (иначе прицел ощущается «ватным»), при этом
-  // направление остаётся точным — кривая применяется к длине вектора, а не
-  // к осям по отдельности.
-  const speed=mobileAimSpeed(),shaped=Math.pow(aimStick.mag,.5)*speed,ux=aimStick.x/aimStick.mag,uy=aimStick.y/aimStick.mag;
-  mx=clamp(mx+ux*shaped*dt,0,innerWidth);
-  my=clamp(my+uy*shaped*dt,0,innerHeight);
+  const speed=mobileAimSpeed();
+  mx=clamp(mx+aimStick.x*speed*dt,0,innerWidth);
+  my=clamp(my+aimStick.y*speed*dt,0,innerHeight);
   firing=true;aimStick.el?.classList.add('firing');
  }else{
   firing=false;aimStick.el?.classList.remove('firing');
@@ -187,6 +203,7 @@ function updateRotateHint(){
 }
 const rotateContinueBtn=document.getElementById('rotateContinue');
 if(rotateContinueBtn)rotateContinueBtn.onclick=()=>{mobileDismissedPortrait=true;updateRotateHint()};
+
 // ---------- Единый пересчёт вьюпорта ----------
 // Один источник правды вместо цепочки таймеров и хаков: получаем реальный
 // размер (getAppViewport() — см. game.js, учитывает Telegram), публикуем его в
