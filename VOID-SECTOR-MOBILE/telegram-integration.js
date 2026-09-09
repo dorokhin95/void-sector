@@ -21,10 +21,16 @@
  // вертикально). disableVerticalSwipes появился в Bot API 7.7 вместе с
  // isVersionAtLeast — если метода определения версии нет, метода блокировки
  // жестов тоже не будет, дальше можно не проверять отдельно.
+ // Блокируем свайп-сворачивание на всех экранах с собственным вертикальным
+ // управлением/прокруткой, а не только в бою: экран паузы/победы/поражения
+ // сам скроллится (#modal), и Telegram-жест конфликтовал бы с этим точно так
+ // же, как раньше конфликтовал с джойстиками в бою. Только в меню (обычный
+ // сайт-подобный скролл без собственных жестов) можно вернуть штатный свайп.
+ const OWN_GESTURE_MODES=new Set(['play','pause','shop','win','lose']);
  function syncTelegramSwipeBehavior(targetMode=mode){
   try{
    if(tg.isVersionAtLeast&&!tg.isVersionAtLeast('7.7'))return;
-   if(targetMode==='play')tg.disableVerticalSwipes?.();
+   if(OWN_GESTURE_MODES.has(targetMode))tg.disableVerticalSwipes?.();
    else tg.enableVerticalSwipes?.();
   }catch{}
  }
