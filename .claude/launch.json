@@ -1,0 +1,5 @@
+{"version":"0.0.1","configurations":[
+ {"name":"void-sector","runtimeExecutable":"node","runtimeArgs":[".claude/serve.js","VOID-SECTOR","8765"],"port":8765},
+ {"name":"void-sector-mobile","runtimeExecutable":"node","runtimeArgs":[".claude/serve.js","VOID-SECTOR-MOBILE","8766"],"port":8766},
+ {"name":"void-sector-landing","runtimeExecutable":"node","runtimeArgs":[".claude/serve.js",".","8767"],"port":8767}
+]}

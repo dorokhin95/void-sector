@@ -1,0 +1,47 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#070d19"><title>VOID SECTOR — Орбита забвения</title>
+<style>
+:root{color-scheme:dark;--cyan:#98f8ed;--muted:#8997aa}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:#070c17;color:#f2f6ff;font:14px Manrope,Arial,sans-serif;display:grid;place-items:center;padding:32px;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 30% 20%,#16324a55,transparent 60%),radial-gradient(ellipse at 80% 80%,#2a164a3a,transparent 55%);z-index:-1}
+.wrap{max-width:640px;text-align:center}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:3px;color:var(--cyan);margin-bottom:18px}
+h1{font-size:clamp(34px,6vw,58px);line-height:1.05;letter-spacing:-2px;font-weight:800;margin:0 0 20px}
+h1 span{color:var(--cyan)}
+p{color:#aab8c9;line-height:1.8;font-size:15px;margin:0 0 34px}
+.links{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:28px}
+a.card{flex:1;min-width:220px;max-width:280px;text-decoration:none;color:inherit;border:1px solid #ffffff20;background:#10203160;border-radius:8px;padding:26px 22px;transition:transform .15s,border-color .15s,background .15s}
+a.card:hover{transform:translateY(-3px);border-color:var(--cyan);background:#16283c80}
+a.card b{display:block;font-size:17px;letter-spacing:1px;margin-bottom:8px}
+a.card small{color:var(--muted);font-size:12px;line-height:1.6;display:block}
+a.card.suggested{border-color:var(--cyan);box-shadow:0 0 30px #69fbe422}
+.tag{display:inline-block;font-size:9px;letter-spacing:2px;color:#08232b;background:var(--cyan);border-radius:3px;padding:3px 7px;margin-bottom:10px}
+.brief{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;font-size:10px;letter-spacing:1px;color:#798a9e}
+</style></head>
+<body>
+<div class="wrap">
+ <div class="eyebrow">◈ БОЕВЫЕ ОПЕРАЦИИ · СЕКТОР 07</div>
+ <h1>VOID SECTOR<br><span>Орбита забвения</span></h1>
+ <p>Космический 3D-шутер прямо в браузере. Кампания на 20 уровней, 4 акта, бесконечный режим и полностью процедурная графика, звук и сюжет — никаких внешних ресурсов.</p>
+ <div class="links" id="links">
+  <a class="card" id="pcLink" href="./VOID-SECTOR/">
+   <b>ИГРАТЬ НА ПК</b>
+   <small>Клавиатура и мышь · полноэкранный 3D</small>
+  </a>
+  <a class="card" id="mobileLink" href="./VOID-SECTOR-MOBILE/">
+   <b>ИГРАТЬ НА ТЕЛЕФОНЕ</b>
+   <small>Два виртуальных джойстика · открывается и внутри Telegram</small>
+  </a>
+ </div>
+ <div class="brief"><span>15 КЛАССОВ ВРАГОВ</span><span>ПРОКАЧКА ОРУЖИЯ</span><span>3D / WEBGL</span></div>
+</div>
+<script>
+// Подсвечиваем более подходящую версию — по наличию грубого (сенсорного) указателя.
+try{
+ const touch=matchMedia('(pointer:coarse)').matches;
+ document.getElementById(touch?'mobileLink':'pcLink').classList.add('suggested');
+ const tag=document.createElement('span');tag.className='tag';tag.textContent='РЕКОМЕНДУЕТСЯ';
+ document.getElementById(touch?'mobileLink':'pcLink').prepend(tag);
+}catch{}
+</script>
+</body></html>

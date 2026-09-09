@@ -1,0 +1,7 @@
+.DS_Store
+Thumbs.db
+*.log
+
+# Локальные копии/бэкапы — не для публикации
+_backup_stage1/
+VOID-SECTOR — копия/

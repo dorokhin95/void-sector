@@ -1,0 +1,14 @@
+{
+ "name": "VOID SECTOR — Орбита забвения",
+ "short_name": "VOID SECTOR",
+ "description": "Космический 3D-шутер. Мобильная версия с сенсорным управлением.",
+ "start_url": "./index.html",
+ "display": "fullscreen",
+ "orientation": "landscape",
+ "background_color": "#070c17",
+ "theme_color": "#070d19",
+ "lang": "ru",
+ "icons": [
+  {"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}
+ ]
+}
