@@ -296,8 +296,16 @@ render=function(dt){
   for(const e of enemies)if(e.mini||e.elite||e.objective)label(e,(e.objective?'ЦЕЛЬ':e.name||(e.elite?'ЭЛИТНЫЙ ':'')+enemyDefs[e.type].name)+' '+Math.ceil(e.hp),'#ffc996');
   if(mission?.ally)label(mission.ally,'ЗАЩИЩАЙ · '+Math.ceil(mission.ally.hp),'#91ffe3');
  }
+ // Мультизахват: свой квадрат на каждую живую цель в locks (не только lockTarget=locks[0]).
+ if(mode==='play')for(const l of locks){
+  if(!liveTarget(l.target))continue;
+  const p=project(l.target.x,l.target.y,l.target.z);if(p.x<0||p.x>W||p.y<0||p.y>H)continue;
+  const ready=l.time>=lockSeconds(),pct=Math.min(100,Math.round(l.time/lockSeconds()*100));
+  const txt=ready?(l.target.type?enemyDefs[l.target.type].name:l.target.name||'МОДУЛЬ')+' · '+Math.ceil(l.target.hp)+' HP':pct+'%';
+  labels+='<span class="lockMarker'+(ready?' locked':'')+'" style="left:'+p.x+'px;top:'+p.y+'px"><i>'+txt+'</i></span>';
+ }
  $('targetLabels').innerHTML=labels;
- const marker=$('lock');marker.hidden=mode!=='play'||!liveTarget(lockTarget);if(!marker.hidden){const p=project(lockTarget.x,lockTarget.y,lockTarget.z);marker.style.left=p.x+'px';marker.style.top=p.y+'px';marker.classList.toggle('locked',lockTime>=lockSeconds());$('locktext').textContent=lockTime>=lockSeconds()?(lockTarget.type?enemyDefs[lockTarget.type].name:lockTarget.name||'МОДУЛЬ')+' · '+Math.ceil(lockTarget.hp)+' HP':Math.round(lockTime/lockSeconds()*100)+'%'}
+ $('lock').hidden=true; // старый одиночный маркер заменён циклом выше по locks — держим его скрытым, не удаляя (см. lockTarget/lockTime — используются и вне HUD)
  $('reticle').style.left=mx+'px';$('reticle').style.top=my+'px';
  const env=mode==='play'?mission?.environment||'open':'open';$('environment').dataset.kind=env;
  $('starCover').hidden=true;

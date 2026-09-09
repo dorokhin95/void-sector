@@ -138,8 +138,11 @@ function enemyDynamic(e,c,d){
  if(e.mini){for(let i=0;i<3;i++)draw(cube,(i-1)*.35,.9,.6,.02,.5+i%2*.2,.02,PAL.steel,0,0,0,0,1,{rough:.4,metal:.9});draw(orb,0,1.5,.6,.08,.08,.08,PAL.red,Math.sin(gfx.time*6)>0?2.5:.3);for(const s of [-1,1])draw(cube,s*.8,.2,-.5,.45,.02,.12,[1,.85,.3],1,0,0,0,1,{shadow:false})}
 }
 models.fin=simpleMesh(G.fin,{rough:.5,metal:.8});models.torusThin=simpleMesh(G.torusThin,{rough:.3,metal:.9});models.torus=simpleMesh(G.torus,{rough:.35,metal:.9});models.bevel=simpleMesh(G.bevel,{rough:.5,metal:.8});models.cone=simpleMesh(G.cone,{rough:.4,metal:.85});models.sphereLow=simpleMesh(G.sphereLow,{rough:.5,metal:.5});
+// Только визуальный масштаб модели врага на мобильном (мелкие враги плохо читались на телефоне).
+// Не влияет на e.r/d.r/collision — hitbox и вся геометрия попаданий остаются как есть.
+const MOBILE_ENEMY_VISUAL_SCALE=1.3;
 renderEnemy=function(e){
- const d=enemyDefs[e.type]||enemyDefs.fighter,c=e.elite?[.45,1,.88]:d.color,size=d.size*(e.mini?1.3:1),m=models[e.type]||models.fighter;
+ const d=enemyDefs[e.type]||enemyDefs.fighter,c=e.elite?[.45,1,.88]:d.color,baseSize=d.size*(e.mini?1.3:1),size=baseSize*MOBILE_ENEMY_VISUAL_SCALE,m=models[e.type]||models.fighter;
  const dmg=1-e.hp/e.maxHp,flash=e.hitTime>0?e.hitTime*5:0;
  pushMatrix(matrix(e.x,e.y,e.z,size,size,size,0,Math.PI,-e.vx*.025));
  drawModel(m,0,0,0,1,0,0,0,{damage:dmg,seed:e.seed,emit:[flash+c[0]*.05,flash*.45+c[1]*.05,flash*.1+c[2]*.05],tint:e.elite?[.9,1,1]:null});
@@ -296,8 +299,16 @@ render=function(dt){
   for(const e of enemies)if(e.mini||e.elite||e.objective)label(e,(e.objective?'ЦЕЛЬ':e.name||(e.elite?'ЭЛИТНЫЙ ':'')+enemyDefs[e.type].name)+' '+Math.ceil(e.hp),'#ffc996');
   if(mission?.ally)label(mission.ally,'ЗАЩИЩАЙ · '+Math.ceil(mission.ally.hp),'#91ffe3');
  }
+ // Мультизахват: свой квадрат на каждую живую цель в locks (не только lockTarget=locks[0]).
+ if(mode==='play')for(const l of locks){
+  if(!liveTarget(l.target))continue;
+  const p=project(l.target.x,l.target.y,l.target.z);if(p.x<0||p.x>W||p.y<0||p.y>H)continue;
+  const ready=l.time>=lockSeconds(),pct=Math.min(100,Math.round(l.time/lockSeconds()*100));
+  const txt=ready?(l.target.type?enemyDefs[l.target.type].name:l.target.name||'МОДУЛЬ')+' · '+Math.ceil(l.target.hp)+' HP':pct+'%';
+  labels+='<span class="lockMarker'+(ready?' locked':'')+'" style="left:'+p.x+'px;top:'+p.y+'px"><i>'+txt+'</i></span>';
+ }
  $('targetLabels').innerHTML=labels;
- const marker=$('lock');marker.hidden=mode!=='play'||!liveTarget(lockTarget);if(!marker.hidden){const p=project(lockTarget.x,lockTarget.y,lockTarget.z);marker.style.left=p.x+'px';marker.style.top=p.y+'px';marker.classList.toggle('locked',lockTime>=lockSeconds());$('locktext').textContent=lockTime>=lockSeconds()?(lockTarget.type?enemyDefs[lockTarget.type].name:lockTarget.name||'МОДУЛЬ')+' · '+Math.ceil(lockTarget.hp)+' HP':Math.round(lockTime/lockSeconds()*100)+'%'}
+ $('lock').hidden=true; // старый одиночный маркер заменён циклом выше по locks — держим его скрытым, не удаляя (см. lockTarget/lockTime — используются и вне HUD)
  $('reticle').style.left=mx+'px';$('reticle').style.top=my+'px';
  const env=mode==='play'?mission?.environment||'open':'open';$('environment').dataset.kind=env;
  $('starCover').hidden=true;
