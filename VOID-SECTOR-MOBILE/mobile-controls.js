@@ -15,7 +15,7 @@ function vibrate(pattern){try{navigator.vibrate?.(pattern)}catch{}}
 // Возвращает объект состояния {x,y,mag} — нормализованный вектор -1..1 и его длина
 // после мёртвой зоны; используется каждый тик симуляции, независимо от частоты
 // событий указателя.
-function createStick(zoneId,stickId){
+function createStick(zoneId,stickId,onBegin){
  const zone=document.getElementById(zoneId),el=document.getElementById(stickId);
  if(!zone||!el)return{x:0,y:0,mag:0,active:false,reset(){}};
  const thumb=el.querySelector('.thumb');
@@ -28,6 +28,7 @@ function createStick(zoneId,stickId){
   state.oy=clamp(e.clientY,r.top+margin,r.bottom-margin);
   el.style.left=state.ox+'px';el.style.top=state.oy+'px';el.classList.add('show');
   try{zone.setPointerCapture(e.pointerId)}catch{}
+  onBegin?.(state);
   track(e);
  }
  function track(e){
@@ -52,7 +53,10 @@ function createStick(zoneId,stickId){
  return state;
 }
 const moveStick=createStick('moveZone','moveStick');
-const aimStick=createStick('aimZone','aimStick');
+// Точка отсчёта прицела фиксируется в момент касания (а не пересчитывается каждый
+// кадр), иначе при одновременном манёвре корабль сдвигается на экране и прицел
+// «плывёт» вместе с ним. Обновляется заново только на новое касание.
+const aimStick=createStick('aimZone','aimStick',state=>{state.anchor=project(px,py,3)});
 
 // ---------- Движение: аналоговый джойстик транслируется в цифровые WASD-флаги,
 // как в оригинальной схеме управления (тяга постоянна, направление — по стику). ----------
@@ -64,12 +68,15 @@ function applyMobileMove(){
  }
 }
 // ---------- Прицел и огонь: правый стик двигает виртуальный прицел относительно
-// корабля и включает стрельбу, пока отклонён дальше мёртвой зоны. ----------
-function applyMobileAim(){
+// точки, зафиксированной при касании, и включает стрельбу, пока отклонён дальше
+// мёртвой зоны. Движение к цели сглажено, чтобы повторное касание в чуть иной
+// точке экрана не давало видимый скачок прицела. ----------
+function applyMobileAim(dt){
  if(mode!=='play'){aimStick.el?.classList.remove('firing');return}
  if(aimStick.mag>0){
-  const anchor=project(px,py,3),R=mobileAimRadius();
-  mx=anchor.x+aimStick.x*R;my=anchor.y+aimStick.y*R;
+  const anchor=aimStick.anchor||project(px,py,3),R=mobileAimRadius();
+  const tx=anchor.x+aimStick.x*R,ty=anchor.y+aimStick.y*R;
+  const k=1-Math.exp(-16*dt);mx+=(tx-mx)*k;my+=(ty-my)*k;
   firing=true;aimStick.el?.classList.add('firing');
  }else{
   firing=false;aimStick.el?.classList.remove('firing');
@@ -80,7 +87,7 @@ function applyMobileAim(){
 (function wrapUpdate(){
  const baseUpdate=update;
  update=function(dt){
-  applyMobileMove();applyMobileAim();
+  applyMobileMove();applyMobileAim(dt);
   baseUpdate(dt);
   syncMobileHUD();
  };
