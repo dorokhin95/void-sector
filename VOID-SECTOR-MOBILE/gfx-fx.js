@@ -24,7 +24,10 @@ function fxGlowTrail(x,y,z,color,size=.25,life=.4){spawnParticle({x,y,z,life,siz
 // --- Взрыв: вспышка → ядро → ударная волна → огненное облако → раскалённые частицы → обломки → дым → искры ---
 function fxExplosion(x,y,z,r=4,opt={}){
  const big=r>=7,huge=r>=12,k=opt.scale||1;
- FX.explosions.push({x,y,z,r,age:0,big,huge,subs:opt.subs||(huge?5:big?3:0),nextSub:.18,color:opt.color||[1,.55,.2],smokeDone:false});
+ // Art Pass: даже "средний" взрыв (r 4..7 — обычный враг, не мелочь вроде swarm/мины)
+ // получает одну маленькую вторичную детонацию, а не только big/huge — тяжелее без
+ // отдельного нового экранного эффекта.
+ FX.explosions.push({x,y,z,r,age:0,big,huge,subs:opt.subs||(huge?5:big?3:r>=4?1:0),nextSub:.18,color:opt.color||[1,.55,.2],smokeDone:false});
  addFlashLight(x,y,z,[1,.75,.45],huge?26:big?16:8,r*3.2,huge?.9:big?.7:.45);
  fxFlash(x,y,z,r*1.4,[1,.97,.9],.12);
  spawnParticle({x,y,z,life:.5,size:r*.35,size2:r*1.3,color:[1,.8,.5],kind:1,alpha:1,add:true});
@@ -41,8 +44,10 @@ function fxChunks(x,y,z,count,speed){for(let i=0;i<count;i++){const v=fxDir(spee
 function fxUpdateExplosions(dt){
  for(const e of FX.explosions){
   e.age+=dt;
-  // дым появляется чуть позже огня и растёт
-  if(e.age>.08&&!e.smokeDone){fxSmoke(e.x,e.y,e.z,e.r*1.1,e.huge?12:e.big?8:5,e.huge?4:2.6);e.smokeDone=true}
+  // дым появляется чуть позже огня и растёт; мелкое уничтожение (swarm/мины) — короткий
+  // дымок, а не тот же 2.6с шлейф, что у обычного взрыва (п.37 — "не каждое уничтожение
+  // большим экранным эффектом").
+  if(e.age>.08&&!e.smokeDone){fxSmoke(e.x,e.y,e.z,e.r*1.1,e.huge?12:e.big?8:4,e.huge?4:e.big?2.6:1.1);e.smokeDone=true}
   if(e.age<.45&&Math.random()<dt*40)fxEmbers(e.x+fxRand(-1,1)*e.r*.3,e.y+fxRand(-1,1)*e.r*.3,e.z,2,e.r*1.5,1);
   // внутренние детонации крупных кораблей
   if(e.subs>0&&e.age>=e.nextSub){e.subs--;e.nextSub=e.age+fxRand(.12,.3);const a=Math.random()*6.28,d=e.r*fxRand(.3,.8);const sx=e.x+Math.cos(a)*d,sy=e.y+Math.sin(a)*d*.6,sz=e.z+fxRand(-1,1)*d*.5;
@@ -55,6 +60,7 @@ function fxImpact(x,y,z,color,kind='gun'){
  if(kind==='shield'){spawnParticle({x,y,z,life:.25,size:.5,size2:1.6,color,kind:1,alpha:.8});fxSparks(x,y,z,color,4,6,.3,.06);return}
  fxSparks(x,y,z,color,kind==='crit'?8:4,kind==='crit'?18:11,.45,.08);spawnParticle({x,y,z,life:.12,size:.35,size2:.9,color:[1,.9,.7],kind:1,alpha:.9});
  if(Math.random()<.35)fxSmoke(x,y,z,.35,1,.9,[.2,.19,.18]);
+ if(Math.random()<.12)fxChunks(x,y,z,1,4); // изредка маленький осколок металла с попадания (п.41)
  addFlashLight(x,y,z,color,2.2,4,.12);
  FX.hitMarks.push({x,y,z,life:1.2,color});if(FX.hitMarks.length>60)FX.hitMarks.shift();
 }
