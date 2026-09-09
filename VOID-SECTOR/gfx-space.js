@@ -35,7 +35,27 @@ const spaceThemes={
   planet:{x:-70,y:-15,z:-230,r:36,color:[.15,.4,.42],color2:[.05,.12,.16],surface:1,ring:[.3,.7,.65],ringTilt:.45},structures:['monolith','monolith2','archRing'],wrecks:0,dustField:[.6,1,.9],grade:{lift:[0,.006,.006],gain:[.96,1.04,1.03],sat:1.08}}
 };
 // Плавный переход между темами.
-const space={current:null,target:null,blend:1,theme:null,env:'open',act:1,structures:[],wrecks:[],meshes:{}};
+const space={current:null,target:null,blend:1,theme:null,env:'open',act:1,structures:[],wrecks:[],decor:[],traffic:[],meshes:{}};
+// ---------------------------------------------------------------------------
+// Этап "Art Pass": дальний/средний декор окружения — чисто декоративный слой.
+// Ничего здесь не попадает в targets()/collision/AI: рисуется в spaceRenderFar()
+// вместе с остальным фоном (shadow:false, без addLight там, где хватает glow-геометрии).
+// Состав на тему — тип+база-количество на ВЫСОКОМ качестве; реальное количество
+// = округлённая база * gfx.preset.particles (0.5..1.3), т.е. не нужна отдельная
+// LOD-система — используются уже существующие уровни качества.
+// ---------------------------------------------------------------------------
+const themeDecor={
+ open:{kinds:[['beacon',2],['trafficShip',3]]},
+ asteroids:{kinds:[['cargo',1],['beacon',1],['trafficShip',1]],beltFar:1},
+ dense:{kinds:[['cargo',2],['beam',1],['beacon',2]],beltFar:1},
+ station:{kinds:[['antenna',2],['cargo',2],['trafficShip',4],['beacon',3]]},
+ mines:{kinds:[['miningRig',2],['cargo',2],['beacon',3]]},
+ nebula:{kinds:[['crystal',2],['beam',1]]},
+ debris:{kinds:[['beam',2],['cargo',2],['antenna',1]]},
+ star:{kinds:[['beacon',1]]},
+ anomaly:{kinds:[['crystal',3],['beam',1]]},
+ alien:{kinds:[['crystal',2]]}
+};
 function lerp(a,b,t){return a+(b-a)*t}
 function lerpArr(a,b,t){return a.map((v,i)=>lerp(v,b[i],t))}
 function mixTheme(a,b,t){const out={};for(const k in b){const va=a[k],vb=b[k];if(typeof vb==='number')out[k]=lerp(typeof va==='number'?va:vb,vb,t);else if(Array.isArray(vb)&&typeof vb[0]==='number')out[k]=lerpArr(Array.isArray(va)&&va.length===vb.length?va:vb,vb,t);else out[k]=vb}return out}
@@ -54,6 +74,14 @@ function spaceMesh(kind){
  if(kind==='deadStation'){b.add(G.torus,{s:14,color:[.2,.2,.21],rough:.8,metal:.6});for(let i=0;i<8;i++){if(i===2||i===3||i===6)continue;const a=i/8*Math.PI*2;b.add(G.bevel,{x:Math.cos(a)*14,y:Math.sin(a)*14,z:0,sx:2.2,sy:1.6,sz:1.8,rz:a,color:[.22,.22,.24],rough:.75,metal:.6});b.add(G.box,{x:Math.cos(a)*7,y:Math.sin(a)*7,z:0,sx:7,sy:.3,sz:.3,rz:a+.1,color:dark,rough:.7,metal:.6})}b.add(G.cyl,{sx:3,sy:3,sz:4,rx:.3,color:[.2,.21,.23],rough:.7,metal:.6});for(let i=0;i<3;i++)b.add(G.box,{x:Math.cos(i*2.1)*9,y:Math.sin(i*2.1)*9,z:1,sx:.3,sy:.2,sz:.3,color:[1,.35,.1],glow:1.2,rough:.5,metal:0})}
  if(kind==='monolith'||kind==='monolith2'){const c=[.06,.09,.12],glow=[.3,1,.85];b.add(G.bevel,{sx:3,sy:22,sz:3,color:c,rough:.25,metal:.9});b.add(G.bevel,{y:-24,sx:6,sy:2,sz:6,color:c,rough:.3,metal:.9});for(let j=0;j<6;j++)b.add(G.box,{x:3.05,y:-14+j*5,sx:.05,sy:.3,sz:1.8,color:glow,glow:2.2,rough:.3,metal:0,mirror:true});b.add(G.torusThin,{y:14,s:5,rx:Math.PI/2,color:c,rough:.3,metal:.9});b.add(G.sphere,{y:14,s:1.4,color:glow,glow:2.5,rough:.3,metal:0});if(kind==='monolith2'){for(let i=0;i<4;i++){const a=i*Math.PI/2;b.add(G.bevel,{x:Math.cos(a)*9,y:-10,z:Math.sin(a)*9,sx:.8,sy:9,sz:.8,ry:-a,color:c,rough:.3,metal:.9})}}}
  if(kind==='archRing'){const c=[.05,.08,.11],glow=[.3,1,.85];b.add(G.torus,{s:40,color:c,rough:.3,metal:.9});for(let i=0;i<16;i++){const a=i/16*Math.PI*2;b.add(G.bevel,{x:Math.cos(a)*40,y:Math.sin(a)*40,z:0,sx:4,sy:2,sz:2.5,rz:a,color:c,rough:.3,metal:.9});b.add(G.box,{x:Math.cos(a)*40,y:Math.sin(a)*40,z:2.7,sx:2.5,sy:.2,sz:.2,rz:a,color:glow,glow:2.2,rough:.3,metal:0})}}
+ // ---- Art Pass: лёгкий декор для дальнего/среднего фона (см. themeDecor) ----
+ if(kind==='beacon'){b.add(G.cyl8,{sx:.15,sy:.15,sz:3,color:dark,rough:.5,metal:.8});b.add(G.sphereLow,{y:1.6,s:.35,color:[1,.4,.12],glow:2.4,rough:.5,metal:0})}
+ if(kind==='cargo'){const cc=[[.4,.3,.15],[.15,.3,.4],[.3,.32,.34]];for(let i=0;i<4;i++)b.add(G.box,{x:(i%2-.5)*2.6,y:Math.floor(i/2)*1.9,z:0,sx:1.2,sy:.9,sz:2,color:cc[i%cc.length],rough:.7,metal:.5});b.add(G.box,{y:2.4,sx:.15,sy:.1,sz:.15,color:[1,.7,.2],glow:1.6,rough:.5,metal:0})}
+ if(kind==='miningRig'){b.add(G.cyl,{sx:2,sy:2,sz:.8,color:metal,rough:.6,metal:.75});b.add(G.cone,{z:3,sx:1.6,sy:1.6,sz:4,rx:Math.PI,color:[.5,.42,.2],rough:.6,metal:.5});for(const s of [-1,1])b.add(G.box,{x:s*2.4,z:1,sx:.15,sy:.15,sz:4,rz:s*.25,color:dark,rough:.6,metal:.7});b.add(G.sphereLow,{z:-1.5,s:.3,color:[1,.75,.15],glow:2,rough:.5,metal:0})}
+ if(kind==='antenna'){b.add(G.cyl8,{sx:.12,sy:.12,sz:6,color:metal,rough:.4,metal:.85});for(let j=0;j<3;j++)b.add(G.box,{z:-3+j*2,sx:1.4-j*.3,sy:.06,sz:.06,color:dark,rough:.5,metal:.8});b.add(G.sphereLow,{z:3.2,s:.22,color:[.3,1,.9],glow:2.2,rough:.4,metal:0})}
+ if(kind==='crystal'){const cg=[.6,.3,1],jig=n=>Math.abs(Math.sin(n*12.9898)*43758.5453)%1;for(let i=0;i<5;i++){const a=i/5*Math.PI*2;b.add(G.cone,{x:Math.cos(a)*1.1,y:Math.sin(a)*1.1,z:0,sx:.4,sy:.4,sz:1.6+jig(i)*1.4,rx:Math.PI/2+jig(i+9)*.6,ry:a,color:cg,glow:1.4,rough:.2,metal:.1})}}
+ if(kind==='beam'){b.add(G.box,{sx:.5,sy:.5,sz:16,color:dark,rough:.6,metal:.75});for(let j=0;j<5;j++)b.add(G.box,{z:-7+j*3.5,sx:.7,sy:.7,sz:.15,color:panel,rough:.5,metal:.7});b.add(G.sphereLow,{z:8,s:.2,color:[1,.3,.15],glow:1.8,rough:.5,metal:0})}
+ if(kind==='trafficShip'){b.add(G.wedge,{sx:.5,sy:.15,sz:1,color:[.2,.22,.26],rough:.4,metal:.8});b.add(G.sphereLow,{z:-.7,s:.1,color:[.4,.9,1],glow:2,rough:.4,metal:0})}
  return space.meshes[kind]=b.mesh({rough:.6,metal:.8,shadow:false});
 }
 function spaceBuildStructures(theme){
@@ -63,6 +91,29 @@ function spaceBuildStructures(theme){
  for(let i=0;i<(theme.wrecks||0);i++)space.wrecks.push({mesh:bigWrecks[i%bigWrecks.length],x:(rnd()<.5?-1:1)*(45+rnd()*60),y:(rnd()-.5)*60,z:-140-rnd()*150,s:1.5+rnd()*2.5,rx:rnd()*6,ry:rnd()*6,rz:rnd()*6,spin:(rnd()-.5)*.04});
  // Пояс дальних астероидов
  space.belt=theme.belt?Array.from({length:70},(_,i)=>({a:i/70*Math.PI*2+rnd()*.05,r:.8+rnd()*2.2,kind:['rock','iron','carbon'][i%3],variant:i%4,ry:rnd()*6})):null;
+ spaceBuildDecor(theme,rnd);
+}
+// Дальний/средний декоративный слой темы (см. themeDecor выше). Количество
+// масштабируется существующим gfx.preset.particles (0.5 LOW .. 1.3 ULTRA) —
+// отдельная LOD-система не нужна. Позиции детерминированы через переданный rnd
+// (тот же seededRandom, что и остальной spaceBuildStructures) — декор не
+// "прыгает" между кадрами и не пересоздаётся, пока не сменится тема.
+function spaceBuildDecor(theme,rnd){
+ space.decor=[];space.traffic=[];
+ const spec=themeDecor[space.env];if(!spec)return;
+ const budget=Math.max(.35,gfx.preset?.particles??1);
+ for(const [kind,base] of spec.kinds){
+  const n=Math.max(1,Math.round(base*budget));
+  for(let i=0;i<n;i++){
+   const traffic=kind==='trafficShip';
+   const x=(rnd()-.5)*(traffic?170:130),y=(rnd()-.5)*(traffic?40:70),z=-(traffic?60+rnd()*90:190+rnd()*260);
+   const s=.7+rnd()*(traffic?.5:1.6);
+   if(traffic)space.traffic.push({mesh:spaceMesh(kind),x,y,z,s,dir:rnd()<.5?-1:1,speed:6+rnd()*5,ry:rnd()*6,seed:rnd()*9});
+   else space.decor.push({mesh:spaceMesh(kind),x,y,z,s,rx:rnd()*6,ry:rnd()*6,rz:rnd()*6,spin:(rnd()-.5)*.03});
+  }
+ }
+ if(spec.beltFar)space.beltFar=Array.from({length:Math.round(26*budget)},(_,i)=>({a:i/26*Math.PI*2+rnd()*.08,r:3.2+rnd()*2.4,kind:['rock','iron','carbon'][i%3],variant:i%4,ry:rnd()*6}));
+ else space.beltFar=null;
 }
 function spaceApplyLighting(theme){
  gfx.sun.dir=theme.light.dir;gfx.sun.color=theme.light.color;gfx.ambientSky=theme.ambSky;gfx.ambientGround=theme.ambGround;gfx.fogColor=theme.fog;gfx.fog=theme.fogRange;
@@ -87,8 +138,15 @@ function spaceRenderFar(){
   if(p.moon)draw(orb,p.moon.x,p.moon.y,p.moon.z,p.moon.r,p.moon.r,p.moon.r,p.moon.color,0,0,gfx.time*.01,0,1,{surface:9,seed:7.1,rough:.95,metal:0,shadow:false})}
  if(th.sunBody){const s=th.sunBody;draw(orb,s.x,s.y,s.z,s.r,s.r,s.r,[1,.45,.12],2.1,0,0,0,1,{rough:1,metal:0,shadow:false,surface:1,color2:[1,.7,.3],seed:gfx.time*.02});gl.depthMask(false);gl.blendFunc(gl.SRC_ALPHA,gl.ONE);draw(orb,s.x,s.y,s.z,s.r*1.1,s.r*1.1,s.r*1.1,[1,.4,.1],1,0,0,0,.2,{shadow:false});gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(true)}
  if(space.belt&&th.planet){const p=th.planet;for(const b of space.belt){const x=p.x+Math.cos(b.a)*p.r*1.9,y=p.y+Math.sin(b.a)*p.r*.35,z=p.z+Math.sin(b.a)*p.r*1.5;const v=asteroidVariants(b.kind)[b.variant%asteroidVariants(b.kind).length];drawModel(v.far,x,y,z,b.r,0,b.ry+gfx.time*.02,0,{shadow:false})}}
+ // Второй, более дальний и крупный слой пояса (asteroids/dense) — реальная
+ // глубина вместо простого удвоения количества камней одного слоя.
+ if(space.beltFar&&th.planet){const p=th.planet;for(const b of space.beltFar){const x=p.x+Math.cos(b.a)*p.r*2.7,y=p.y+Math.sin(b.a)*p.r*.5,z=p.z+Math.sin(b.a)*p.r*2.2-40;const v=asteroidVariants(b.kind)[b.variant%asteroidVariants(b.kind).length];drawModel(v.far,x,y,z,b.r*1.8,0,b.ry+gfx.time*.012,0,{shadow:false})}}
  for(const s of space.structures)drawModel(s.mesh,s.x,s.y,s.z,s.s,0,0,s.rz+gfx.time*s.spin,{shadow:false});
  for(const w of space.wrecks)drawModel(w.mesh,w.x,w.y,w.z,w.s,w.rx,w.ry+gfx.time*w.spin,w.rz,{shadow:false,damage:.35,seed:w.rx});
+ // Дальний декор темы (см. spaceBuildDecor) — статичные силуэты, никакого collision/AI.
+ for(const d of space.decor)drawModel(d.mesh,d.x,d.y,d.z,d.s,d.rx,d.ry+gfx.time*d.spin,d.rz,{shadow:false});
+ // Декоративный дальний транспорт — прямолинейный снос по X с бесшовным wrap, без AI/enemies/collision.
+ for(const t of space.traffic){const span=340,x=((t.x+gfx.time*t.speed*t.dir+span/2)%span+span)%span-span/2;drawModel(t.mesh,x,t.y,t.z,t.s,0,t.ry,t.dir<0?Math.PI:0,{shadow:false})}
  // Ближние блуждающие обломки поля (окружение debris/station)
  if(space.env==='debris'||space.env==='station'||space.env==='dense'){for(let i=0;i<(space.env==='debris'?8:3);i++){const z=((gfx.time*3+i*37)%130);const x=Math.sin(i*2.3)*34,y=Math.cos(i*1.7)*14;drawModel(bigWrecks[i%bigWrecks.length],x,y,-175+z,.9+i*.15,i*.7+gfx.time*.05,i*1.3,i*.4,{damage:.3,seed:i})}}
 }
