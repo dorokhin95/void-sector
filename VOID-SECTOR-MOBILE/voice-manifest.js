@@ -196,6 +196,11 @@ globalThis.VOICE_MANIFEST={
    "duration": 7.786,
    "who": "ship_ai"
   },
+  "fe6043b8": {
+   "src": "assets/voice/ru/ship_ai/fe6043b8.mp3",
+   "duration": 8.877,
+   "who": "ship_ai"
+  },
   "86d5b2fa": {
    "src": "assets/voice/ru/ship_ai/86d5b2fa.mp3",
    "duration": 7.507,
@@ -571,14 +576,29 @@ globalThis.VOICE_MANIFEST={
    "duration": 2.747,
    "who": "ship_ai"
   },
+  "7edab380": {
+   "src": "assets/voice/ru/ship_ai/7edab380.mp3",
+   "duration": 4.001,
+   "who": "ship_ai"
+  },
   "f7933136": {
    "src": "assets/voice/ru/ship_ai/f7933136.mp3",
    "duration": 4.686,
    "who": "ship_ai"
   },
+  "ffb57bc8": {
+   "src": "assets/voice/ru/ship_ai/ffb57bc8.mp3",
+   "duration": 6.102,
+   "who": "ship_ai"
+  },
   "d4589298": {
    "src": "assets/voice/ru/ship_ai/d4589298.mp3",
    "duration": 3.989,
+   "who": "ship_ai"
+  },
+  "519e6180": {
+   "src": "assets/voice/ru/ship_ai/519e6180.mp3",
+   "duration": 4.849,
    "who": "ship_ai"
   },
   "b205e480": {
@@ -589,6 +609,26 @@ globalThis.VOICE_MANIFEST={
   "463f5c38": {
    "src": "assets/voice/ru/ship_ai/463f5c38.mp3",
    "duration": 4.372,
+   "who": "ship_ai"
+  },
+  "8de8759a": {
+   "src": "assets/voice/ru/ship_ai/8de8759a.mp3",
+   "duration": 4.593,
+   "who": "ship_ai"
+  },
+  "794cd488": {
+   "src": "assets/voice/ru/ship_ai/794cd488.mp3",
+   "duration": 1.946,
+   "who": "ship_ai"
+  },
+  "70871560": {
+   "src": "assets/voice/ru/ship_ai/70871560.mp3",
+   "duration": 2.48,
+   "who": "ship_ai"
+  },
+  "178bf4a8": {
+   "src": "assets/voice/ru/ship_ai/178bf4a8.mp3",
+   "duration": 2.41,
    "who": "ship_ai"
   },
   "8a3bf278": {

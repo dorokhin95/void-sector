@@ -14,19 +14,19 @@
    "dsp": "ship_ai"
   }
  },
- "entries": 129,
- "covered": 129,
- "uniqueAssets": 129,
+ "entries": 137,
+ "covered": 137,
+ "uniqueAssets": 137,
  "byWho": {
-  "ship_ai": 117,
+  "ship_ai": 125,
   "captain": 12
  },
  "failed": [],
  "problems": [],
  "warnings": [],
  "prunedFiles": [],
- "totalDuration": 696.83,
- "totalBytes": 8460204,
+ "totalDuration": 732.09,
+ "totalBytes": 8889676,
  "targets": [
   "VOID-SECTOR",
   "VOID-SECTOR-MOBILE"
