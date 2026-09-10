@@ -7,7 +7,7 @@
 // проигранные реплики. voice-manifest.js маленький и прекэшируется сразу.
 // Всё остальное (game.js, story.js, style.css и т.д.) идёт напрямую в сеть,
 // как и раньше — этот SW их не перехватывает.
-const CACHE='void-sector-voice-v1';
+const CACHE='void-sector-voice-v2';
 const PRECACHE=['voice-manifest.js'];
 
 self.addEventListener('install',e=>{
