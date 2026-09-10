@@ -1,0 +1,34 @@
+{
+ "provider": "yandex",
+ "voices": {
+  "captain": {
+   "voice": "alexander",
+   "role": "neutral",
+   "speed": 1.0,
+   "dsp": "captain"
+  },
+  "ship_ai": {
+   "voice": "alena",
+   "role": "neutral",
+   "speed": 1.0,
+   "dsp": "ship_ai"
+  }
+ },
+ "entries": 129,
+ "covered": 129,
+ "uniqueAssets": 129,
+ "byWho": {
+  "ship_ai": 117,
+  "captain": 12
+ },
+ "failed": [],
+ "problems": [],
+ "warnings": [],
+ "prunedFiles": [],
+ "totalDuration": 696.83,
+ "totalBytes": 8460204,
+ "targets": [
+  "VOID-SECTOR",
+  "VOID-SECTOR-MOBILE"
+ ]
+}

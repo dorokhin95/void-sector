@@ -1,5 +1,6 @@
 {
  "_comment": "Production-конфиг озвучки VOID SECTOR. Ровно два voice speaker ID (captain, ship_ai). provider — единственный production-провайдер; automatic fallback на другой провайдер/похожий голос ЗАПРЕЩЁН: если выбранный голос недоступен, build падает с ошибкой. Поля voice/role у captain и ship_ai ЗАПОЛНЯЮТСЯ ТОЛЬКО после утверждения пользователем (GATE 1 → GATE 2, см. tools/voice/casting.py и README); до этого build_voicepack.py отказывается генерировать production pack.",
+ "_approval": "GATE 1/2 (2026-09-10): пользователь выбрал captain=alexander/neutral, ship_ai=alena/neutral по результатам раунда A кастинга",
  "provider": "yandex",
  "providers": {
   "yandex": {
@@ -54,8 +55,8 @@
   ]
  },
  "characters": {
-  "captain": {"provider": "yandex", "voice": null, "role": null, "speed": 1.0, "dsp": "captain"},
-  "ship_ai": {"provider": "yandex", "voice": null, "role": null, "speed": 1.0, "dsp": "ship_ai"}
+  "captain": {"provider": "yandex", "voice": "alexander", "role": "neutral", "speed": 1.0, "dsp": "captain"},
+  "ship_ai": {"provider": "yandex", "voice": "alena", "role": "neutral", "speed": 1.0, "dsp": "ship_ai"}
  },
  "dsp": {
   "_comment": "Лёгкая обработка вместо старой телефонной трубки (LP 4.2 кГц). Сначала чистая речь, затем едва заметная принадлежность к игре.",
