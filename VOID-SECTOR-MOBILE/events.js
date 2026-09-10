@@ -65,4 +65,21 @@ const eventState={bossPhases:new Map(),lowHull:false,shieldDown:false,shieldHalf
   const ready=locks.some(l=>l.time>=lockSeconds());if(ready!==eventState.lockReady){eventState.lockReady=ready;if(ready)emit('lockAcquired',{count:locks.length})}
   const hot=heat>=80;if(hot!==eventState.heatWarned){eventState.heatWarned=hot;if(hot&&!overheated)emit('heatWarning',{heat})}
  });
+ // Кнопки #continue/#pause/#resume/#dash/#pulse/#rocket были привязаны через
+ // .onclick=<имяФункции> в game.js/stage1.js — ОБА грузятся раньше этого файла, а
+ // .onclick запоминает ЗНАЧЕНИЕ функции на момент присваивания, а не имя. Поэтому клики
+ // по ним вызывали ещё не обёрнутую версию, и emit(...) для этих действий никогда не
+ // срабатывал по клику (только если функция вызывается по имени из кода — как, например,
+ // fireGuns() из update() — там всё работало). Особенно заметно на #continue: клик не
+ // эмитил levelBegin, storyState.level никогда не продвигался дальше первого уровня, и
+ // весь сюжет со второй миссии играл сценарий уровня 1 ("одинаковые диалоги с 1 и 2
+ // миссии"). Перепривязываем на живой lookup по имени — теперь клик всегда достаёт
+ // ТЕКУЩУЮ (обёрнутую) версию, как уже сделано для #start/#restart в stage1.js.
+ const rebindOnclick=(id,fn)=>{const el=document.getElementById(id);if(el)el.onclick=fn};
+ rebindOnclick('continue',()=>nextWave());
+ rebindOnclick('pause',()=>pause());
+ rebindOnclick('resume',()=>pause());
+ rebindOnclick('dash',()=>dash());
+ rebindOnclick('pulse',()=>pulse());
+ rebindOnclick('rocket',()=>launchMissile());
 })();
