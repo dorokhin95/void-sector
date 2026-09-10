@@ -171,7 +171,6 @@ const storyScript=[
 
 // Эпилог финального экрана и реплики поражения.
 const storyEpilogue='Переход схлопнулся за кормой «Вектора» — сектор, которого нет на картах, снова исчез. Ударная группа «Немезида» вышла к Эребу в полном составе, станция «Маяк» эвакуирована. Данные «Зонда» переданы Союзу: сеть Врат Архитекторов — карантин, и человечество узнало об этом вовремя. Артём Соколов и экипаж «Персея» внесены в списки павших — спустя двадцать четыре года.';
-const storyLoseLines=[L('ship_ai','Капитан не отвечает. Корпус потерян. Передаю координаты штабу.'),L('ship_ai','Сигнал маяка «Вектора» потерян. Запущен поиск пилота.')];
 
 // ---------------------------------------------------------------------------
 // 3. Ситуативные реплики (общие пулы) — с перезарядкой ≥ 45 с.
@@ -200,6 +199,30 @@ const storyPools={
   L('ship_ai','В сектор вошла свежая группа. Целей: {n}.','В сектор вошла свежая группа.'),
   L('ship_ai','Новая группа противника на радаре. Целей: {n}.','Новая группа противника на радаре.')
  ],
+ // Реальная боевая обратная связь по попаданиям (взамен шаблонного чата, см. запрос
+ // пользователя): щит на половине → щит на нуле (shieldDown выше) → первый удар по
+ // корпусу без щита → корпус в красной зоне (lowHull выше). Голос — качественный
+ // ("на половине"/"критический"), точный процент — только на экране (comms), TTS не
+ // умеет произносить произвольные числа на лету. on('shieldHalf'/'hullExposed') ниже.
+ shieldHalf:[L('ship_ai','Щит на половине. Не подставляйся под очередь.'),L('ship_ai','Щит слабеет. Держи дистанцию.')],
+ hullExposed:[L('ship_ai','Щит не держит. Урон идёт в корпус.'),L('ship_ai','Щит пробит. Теперь каждое попадание — по корпусу.')],
+ // Голосом произносим цель миссии сразу после брифинга (п. запроса «озвучивать цели
+ // миссии») — по типу задачи (campaign.js: goal), а не по уровню: 9 вариантов на все
+ // 20 миссий, не 20 отдельных строк.
+ objective:{
+  clear:L('ship_ai','Цель: уничтожить все вражеские силы в секторе.'),
+  survive:L('ship_ai','Цель: продержаться под атакой до расчётного времени выхода.'),
+  escort:L('ship_ai','Цель: сопроводить и защитить союзный корабль.'),
+  objects:L('ship_ai','Цель: уничтожить обозначенные объекты.'),
+  generators:L('ship_ai','Цель: уничтожить генераторы защиты.'),
+  convoy:L('ship_ai','Цель: перехватить и уничтожить весь конвой.'),
+  chase:L('ship_ai','Цель: догнать и перехватить цель.'),
+  blockade:L('ship_ai','Цель: пробить блокаду и пройти кольцо.'),
+  station:L('ship_ai','Цель: удержать союзную станцию.')
+ },
+ // Реплики поражения — раньше отдельный массив storyLoseLines без анти-повтора; теперь
+ // обычный пул, storyPickFresh не даст услышать одно и то же на 2 смертях подряд.
+ lose:[L('ship_ai','Капитан не отвечает. Корпус потерян. Передаю координаты штабу.'),L('ship_ai','Сигнал маяка «Вектора» потерян. Запущен поиск пилота.')],
  multiLock:[],
  pickup:[],
  miniSpawn:{hammer:L('ship_ai','Таран. Бронированный нос — бей сбоку или ракетами.'),lancer:L('ship_ai','Баллиста. Три рельсотронных снаряда после заряда — уходи с линии.'),carrier:L('ship_ai','Улей. Выпускает Рой, пока жив. Бей носитель.'),inquisitor:L('ship_ai','Прелат. Барьеры на соседей и импульсные снаряды. Твой импульс снимает барьеры.')},
@@ -218,8 +241,12 @@ const storyPools={
 // окончания последней сценарной реплики (для паузы перед situational chatter, п.21 ТЗ);
 // lastPick — последний выбранный индекс на пул, чтобы storyPickFresh не повторял его сразу.
 const storyState={level:0,shownKeys:new Set(),empUses:0,lastGeneric:-1e9,lastScripted:-1e9,debriefPending:false,lastPick:{},campaign:true,started:false};
-const storySettings={voice:false};
-try{const s=JSON.parse(localStorage.getItem('void-sector-story'));if(s&&typeof s.voice==='boolean')storySettings.voice=s.voice}catch{}
+// tutorialSeen переживает рестарт/повтор уровня и даже новую кампанию (в отличие от
+// shownKeys, который намеренно чистится на каждом start() — см. storyBind): обучающая
+// реплика про захват ракеты должна прозвучать один раз за всё время игры на этом
+// браузере, а не при каждой повторной попытке уровня 1.
+const storySettings={voice:false,tutorialSeen:false};
+try{const s=JSON.parse(localStorage.getItem('void-sector-story'));if(s&&typeof s.voice==='boolean')storySettings.voice=s.voice;if(s&&typeof s.tutorialSeen==='boolean')storySettings.tutorialSeen=s.tutorialSeen}catch{}
 function storySave(){try{localStorage.setItem('void-sector-story',JSON.stringify(storySettings))}catch{}}
 function storyOnce(key){if(storyState.shownKeys.has(key))return false;storyState.shownKeys.add(key);return true}
 const storyNow=()=>performance.now()/1000;
@@ -296,14 +323,18 @@ function storyHasScripted(){return (storyCurrent&&storyCurrent.scripted)||storyQ
 // последней сценарной реплики (п.21 ТЗ: 8-12 с тишины после важного события — берём середину).
 const STORY_HUSH_SEC=10;
 // Поставить реплику в очередь. scripted=false — ситуативная (может быть отброшена).
-function storySay(line,scripted=true){
+// vital=true — боевое предупреждение (щит/корпус): не делит 45-секундный кулдаун с
+// обычным чатом (miniKill/reinforcement/pickup) и не запускает его сам — иначе важное
+// «щит на половине» могло бы молча потеряться из-за недавней болтовни не по теме.
+// Сценарные реплики и пауза после них (STORY_HUSH_SEC) важнее вообще всего — это не меняется.
+function storySay(line,scripted=true,vital=false){
  if(!line||!line.text)return false;
  if(!scripted){
   if(storyHasScripted())return false;
-  if(storyNow()-storyState.lastGeneric<45)return false;
+  if(!vital&&storyNow()-storyState.lastGeneric<45)return false;
   if(storyNow()-storyState.lastScripted<STORY_HUSH_SEC)return false;
   if(storyCurrent)return false;
-  storyState.lastGeneric=storyNow();
+  if(!vital)storyState.lastGeneric=storyNow();
  }else{
   if(storyCurrent&&!storyCurrent.scripted)storyElapsed=storyCurrent.duration;// сценарная обрывает играющую ситуативную
   if(storyQueue.length&&!storyQueue[0].scripted)storyQueue.length=0;// и отменяет ещё не начатую ситуативную в очереди (п.8 ТЗ)
@@ -441,7 +472,7 @@ function storyPatchFinish(win){
   // Экран победы: storyTick тут не тикает (mode==='win'), поэтому озвучка — вне очереди/тика.
   playStoryVoiceSequence(storyScript[19].debrief);
  }else if(!win){
-  const l=storyPick(storyLoseLines);
+  const l=storyPickFresh('lose');
   text.innerHTML='<span class="storyLose" style="color:'+storyCharacters[l.who].color+'">'+storyName(l.who)+' — '+storyEscape(l.text)+'</span>'+storyEscape(text.textContent||'');
   playStoryVoice(l);
  }
@@ -461,11 +492,20 @@ function storyBind(){
   storyState.level=level;storyState.campaign=gm==='campaign';storyClear();
   if(gm!=='campaign'){if(level===0)storySayAll(storyPools.endlessStart);return}// бесконечный режим: дальше см. waveBegin
   const s=storyLevel();if(s&&storyOnce('brief'+level))storySayAll(s.brief);
+  // Цель миссии — сразу после брифинга, по типу задачи (campaign.js: goal), один раз за
+  // уровень за этот заход (см. запрос «озвучивать цели миссии»).
+  const def=typeof campaign!=='undefined'?campaign[level]:null,goalLine=def&&storyPools.objective[def.goal];
+  if(goalLine&&storyOnce('objective'+level))storySay(goalLine);
  });
  on('stage',({stage,level})=>{
   if(!storyState.campaign)return;const s=storyLevel();if(!s)return;
   if(stage===1&&storyOnce('contact'+level))storySayAll(s.contact);
-  if(stage===2&&storyOnce('change'+level))storySayAll(s.change);
+  if(stage===2&&storyOnce('change'+level)){
+   // Обучение про захват цели ракетой (уровень 1) — не по разу за попытку/рестарт, а
+   // ровно один раз за всё время игры на этом браузере (см. storySettings.tutorialSeen).
+   if(level===0){if(!storySettings.tutorialSeen){storySayAll(s.change);storySettings.tutorialSeen=true;storySave()}}
+   else storySayAll(s.change);
+  }
   if(stage===3&&storyOnce('climax'+level))storySayAll(s.climax);
  });
  on('bossPhase',({kind,phase})=>{
@@ -489,12 +529,17 @@ function storyBind(){
   if(!storyState.campaign)return;const s=storyLevel(),m=mission;if(!s?.objects||!m||m.stage!==2)return;
   const idx=Math.min(2,Math.max(0,(m.objectsDestroyed||1)-1));if(storyOnce('obj'+storyState.level+'_'+idx))storySay(s.objects[idx]);
  });
+ // Боевая обратная связь по попаданиям — vital:true (см. storySay): щит/корпус важнее
+ // обычного чата, не делят с ним 45-секундный кулдаун (запрос: "попадание — сколько щита
+ // осталось, потом щит сел — попадание идёт в корпус" вместо шаблонных фраз не по делу).
+ on('shieldHalf',()=>storySay(storyPickFresh('shieldHalf'),false,true));
+ on('shieldDown',()=>storySay(storyPickFresh('shieldDown'),false,true));
+ on('hullExposed',()=>storySay(storyPickFresh('hullExposed'),false,true));
  on('lowHull',()=>{
   const s=storyState.campaign?storyLevel():null;
   if(s?.lowHull&&storyOnce('lowHull'+storyState.level)){storySay(s.lowHull);return}
-  storySay(storyPickFresh('lowHull'),false);
+  storySay(storyPickFresh('lowHull'),false,true);
  });
- on('shieldDown',()=>storySay(storyPickFresh('shieldDown'),false));
  on('emp',()=>{storyState.empUses++;if(storyState.empUses<=1)storySay(storyPools.emp[0],false)});
  on('overheat',()=>storySay(storyPickFresh('overheat'),false));
  on('missileLaunch',({count})=>{if(count>=2)storySay(storyPick(storyPools.multiLock),false)});

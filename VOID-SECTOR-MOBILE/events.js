@@ -7,7 +7,7 @@ function on(name,fn){(eventListeners[name]??=[]).push(fn);return fn}
 function off(name,fn){const l=eventListeners[name];if(l){const i=l.indexOf(fn);if(i>=0)l.splice(i,1)}}
 function emit(name,data={}){const l=eventListeners[name];if(l)for(const fn of l){try{fn(data)}catch(err){console.warn('event '+name,err)}}const any=eventListeners['*'];if(any)for(const fn of any){try{fn(name,data)}catch(err){console.warn('event *',err)}}}
 // Состояние, отслеживаемое опросом каждый тик.
-const eventState={bossPhases:new Map(),lowHull:false,shieldDown:false,overheated:false,warning:false,leech:false,level:-1,mode:'menu',combat:false,lockReady:false,heatWarned:false};
+const eventState={bossPhases:new Map(),lowHull:false,shieldDown:false,shieldHalf:false,hullExposed:false,overheated:false,warning:false,leech:false,level:-1,mode:'menu',combat:false,lockReady:false,heatWarned:false};
 (function wrapGameplay(){
  const wrap=(name,fn)=>{const base=globalThis[name];if(typeof base!=='function'){console.warn('events: нет функции '+name);return}globalThis[name]=fn(base)};
  wrap('start',base=>function(saved=null){base(saved);emit('start',{saved:!!saved,gameMode});emit('levelBegin',{level:wave,mission,gameMode});eventState.level=wave});
@@ -19,7 +19,13 @@ const eventState={bossPhases:new Map(),lowHull:false,shieldDown:false,overheated
  wrap('fireGuns',base=>function(){const n=bullets.length;base();if(bullets.length>n)emit('gun',{count:bullets.length-n,heat,critical:bullets.slice(n).some(b=>b.critical)});if(!eventState.overheated&&overheated){eventState.overheated=true;emit('overheat',{})}if(eventState.overheated&&!overheated)eventState.overheated=false});
  wrap('launchMissile',base=>function(){const n=missiles.length;base();if(missiles.length>n)emit('missileLaunch',{count:missiles.length-n,targets:missiles.slice(n).map(m=>m.target)})});
  wrap('explode',base=>function(x,y,z,radius=7,secondary=false){base(x,y,z,radius,secondary);emit('explode',{x,y,z,radius:radius+levels.blastRadius*.8,secondary})});
- wrap('hit',base=>function(d,kind='shot'){const sb=shieldEnergy,hb=health;base(d,kind);if(shieldEnergy!==sb||health!==hb){emit('playerHit',{damage:d,kind,shieldBefore:sb,shieldAfter:shieldEnergy,hullBefore:hb,hullAfter:health,shieldBroken:sb>0&&shieldEnergy<=0,hullDamage:hb-health});if(hb-health>0)emit('hullHit',{damage:hb-health,kind});if(sb>0&&shieldEnergy<=0){eventState.shieldDown=true;emit('shieldDown',{})}}});
+ wrap('hit',base=>function(d,kind='shot'){const sb=shieldEnergy,hb=health;base(d,kind);if(shieldEnergy!==sb||health!==hb){emit('playerHit',{damage:d,kind,shieldBefore:sb,shieldAfter:shieldEnergy,hullBefore:hb,hullAfter:health,shieldBroken:sb>0&&shieldEnergy<=0,hullDamage:hb-health});
+  if(hb-health>0){emit('hullHit',{damage:hb-health,kind});
+   // Первый удар по корпусу ПОСЛЕ того, как щит уже сел (sb<=0 — щит был пуст ДО этого попадания) —
+   // отдельный сигнал для голоса ("щит не держит"), не на каждый такой удар подряд (сброс — shieldRestored).
+   if(sb<=0&&!eventState.hullExposed){eventState.hullExposed=true;emit('hullExposed',{})}
+  }
+  if(sb>0&&shieldEnergy<=0){eventState.shieldDown=true;emit('shieldDown',{})}}});
  wrap('dash',base=>function(){const cd=dashCD;base();if(dashCD!==cd)emit('dash',{})});
  wrap('pulse',base=>function(){const cd=pulseCD;base();if(pulseCD!==cd)emit('emp',{x:px,y:py,z:3,r:empRadius()})});
  wrap('damageEnemy',base=>function(e,d,kind='gun',projectile=null){const sh=e?.shield||0,barrier=e?.barrier>0;const actual=base(e,d,kind,projectile);if(e&&actual>0)emit('enemyHit',{e,damage:actual,kind,at:projectile,shieldHit:sh>0,barrier,boss:bossFleet.includes(e)});else if(e&&actual===0&&e.hp>0)emit('enemyBlocked',{e,kind});return actual});
@@ -49,7 +55,10 @@ const eventState={bossPhases:new Map(),lowHull:false,shieldDown:false,overheated
   if(mode!=='play')return;
   for(const b of bossFleet){const prev=eventState.bossPhases.get(b)||1;if(b.phase!==prev){eventState.bossPhases.set(b,b.phase);emit('bossPhase',{b,kind:b.kind,phase:b.phase,prev})}}
   const low=health/maxHealth()<.3;if(low&&!eventState.lowHull){eventState.lowHull=true;emit('lowHull',{health})}if(!low&&health/maxHealth()>.5)eventState.lowHull=false;
-  if(eventState.shieldDown&&shieldEnergy>maxShield()*.25){eventState.shieldDown=false;emit('shieldRestored',{})}
+  // Щит на половине — отдельный, более ранний порог, чем shieldDown (0%); гистерезис на .7,
+  // чтобы не дребезжало на границе (тот же паттерн, что lowHull выше).
+  const half=shieldEnergy/maxShield()<.5;if(half&&!eventState.shieldHalf){eventState.shieldHalf=true;emit('shieldHalf',{shieldEnergy})}if(!half&&shieldEnergy/maxShield()>.7)eventState.shieldHalf=false;
+  if(eventState.shieldDown&&shieldEnergy>maxShield()*.25){eventState.shieldDown=false;eventState.hullExposed=false;emit('shieldRestored',{})}
   const warn=!!mission?.warning;if(warn!==eventState.warning){eventState.warning=warn;if(warn)emit('anomalyWarning',{})}
   if(leechDrain!==eventState.leech){eventState.leech=leechDrain;emit(leechDrain?'leechStart':'leechEnd',{})}
   const combat=enemies.length>0||bossFleet.length>0;if(combat!==eventState.combat){eventState.combat=combat;emit(combat?'combatStart':'combatEnd',{})}

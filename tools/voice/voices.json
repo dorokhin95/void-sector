@@ -75,7 +75,8 @@
  },
  "validation": {
   "allowedSpeakers": ["captain", "ship_ai"],
-  "maxEntries": 140,
+  "maxEntries": 160,
+  "_maxEntriesNote": "было 140 (100-120 target/140 hard max — исходное ТЗ на рерайт диалогов); поднято до 160 2026-09-10 под явный запрос пользователя добавить voice-фидбек по попаданиям (щит/корпус) и озвучку целей миссии по типу задачи — сейчас 150/160, ещё есть запас",
   "sourceStory": "VOID-SECTOR-MOBILE/story.js",
   "requireIdenticalStory": "VOID-SECTOR/story.js"
  },

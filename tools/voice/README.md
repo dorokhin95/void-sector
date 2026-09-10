@@ -8,7 +8,7 @@ Mobile; в игре нет ни браузерного `speechSynthesis`, ни T
 ## Порядок работы (с обязательными gate'ами)
 
 ```text
-1. сценарий      story.js → node tools/voice/extract_story.mjs --strict   (speakers = {captain, ship_ai}, ≤140 реплик)
+1. сценарий      story.js → node tools/voice/extract_story.mjs --strict   (speakers = {captain, ship_ai}, ≤160 реплик — voices.json validation.maxEntries)
 2. кастинг A     python tools/voice/casting.py --round A                    → previews/casting/roundA/index.html   GATE 1
 3. кастинг B     python tools/voice/casting.py --round B --captain v:r --captain v:r --ai v:r --ai v:r
                                                                             → previews/casting/roundB/index.html   GATE 2

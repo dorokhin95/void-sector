@@ -1,6 +1,6 @@
 VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
 Сгенерировано tools/voice/audit_dialogue.mjs — не редактировать вручную.
-Источник: VOID-SECTOR-MOBILE/story.js (20 уровней, 104 реплик в script + 24 в пулах)
+Источник: VOID-SECTOR-MOBILE/story.js (20 уровней, 104 реплик в script + 39 в пулах)
 
 УРОВЕНЬ 01 — Первый сигнал (goal=clear)
  brief:        [ship_ai] Орбита Эреба. Источник сигнала в трёх минутах. Сигнатуры не опознаны.
@@ -9,7 +9,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Захват: держи прицел на цели до готовности. Ракета доведёт сама.
  climax:       (нет реплик)
  debrief:      [ship_ai] Маршрут чист. Сплав обломков — неизвестной металлургии. Образец сохранён.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 02 — Каменный коридор (goal=clear)
  brief:        [ship_ai] Астероидный коридор: камни блокируют огонь, наш и их. Сигнал «Персея» шёл отсюда.
@@ -18,7 +18,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:(нет реплик)
  climax:       [ship_ai] Корсары перекрывают выход. Три сигнатуры справа — только сопровождение.
  debrief:      [captain] Слишком согласованно для пиратов. Это выученный экипаж.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 03 — Засада (goal=survive)
  brief:        [ship_ai] Сигнал бедствия, гражданский код Союза. Координаты за Эребом. Вероятность ловушки высокая.
@@ -27,7 +27,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Управляемые ракеты с флангов. Продержись двадцать пять секунд.
  climax:       [ship_ai] Выход рассчитан. Они знали наш код бедствия. Земной код.  //  [captain] Земной код. Запиши всё.
  debrief:      [ship_ai] Код бедствия — стандарт Союза, устаревший на четверть века. Кто-то давно слушает наш эфир.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 04 — Живой груз (goal=escort)
  brief:        [ship_ai] Транспорт «Ковчег-3», двести человек. Его прочность — под задачей. Ведём до точки.
@@ -36,7 +36,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Маршрут заминирован. Магнитные мины тянутся к ближнему кораблю — расстреливай издали.
  climax:       [ship_ai] Тяжёлая сигнатура, обозначаю «Таран». Нос бронирован — бей сбоку или ракетами.
  debrief:      [ship_ai] Транспорт вышел из зоны. Броня Тарана — земной сплав. Совпадение исключено.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 05 — Пасть Цербера (goal=clear)
  brief:        [ship_ai] Командный узел в доке станции — «Цербер». Охрана: Корсары, Громы, Бастионы. У Бастионов щит.
@@ -45,7 +45,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:(нет реплик)
  climax:       [ship_ai] Цербер выходит из дока. Ракеты — на его турели и модули: каждый сбитый снижает огонь.
  debrief:      [ship_ai] Цербер уничтожен. В обломках кресло пилота земного стандарта и маркировка: «Персей». Первая экспедиция.  //  [captain] Значит, они не погибли.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 06 — Слепая зона (goal=survive)
  brief:        [ship_ai] Акт второй. Идём по следу «Персея». Туманность: захват цели медленнее на треть.
@@ -54,7 +54,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Помехи растут, сенсоры теряют цели. Переживи обстрел — двадцать пять секунд.
  climax:       (нет реплик)
  debrief:      [ship_ai] Их ракеты используют наши алгоритмы наведения. Доработанные за двадцать четыре года.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 07 — Пояс мин (goal=objects)
  brief:        [ship_ai] Минёры перекрыли путь магнитными зарядами. Разведка засекла три узла управления полем.
@@ -63,7 +63,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Узлы управления отмечены. Их берут пули, ракеты и импульс в радиусе.
  climax:       (нет реплик)
  debrief:      [ship_ai] Протокол узлов — экспедиционный, «Персей». Они не выживали. Они строили.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 08 — Перехват снабжения (goal=convoy)
  brief:        [ship_ai] Конвой снабжения: три тяжёлых транспорта на корпусах Молотов. Ни один не должен уйти.
@@ -72,7 +72,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Транспорты на маршруте. Нос бронирован — сбоку или ракетами. Не дай уйти за спину.
  climax:       [ship_ai] Конвой уничтожен. Добей арьергард. Из обломков высыпается светящийся серый материал.
  debrief:      [ship_ai] Анализ: не руда. Пепел — материал Архитекторов. Везли тоннами.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 09 — Охотники за тенью (goal=chase)
  brief:        [ship_ai] Элитная эскадрилья прикрывает курьера с данными. Бирюзовые двигатели — элита. Курьер не должен уйти.
@@ -81,7 +81,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Курьер. Держись на его курсе — рывок при совпадении курса ускоряет сближение. Шестьдесят секунд.
  climax:       [ship_ai] Перехват на нашем канале. Источник внутри сектора. Он знает наш позывной.
  debrief:      [ship_ai] Данные курьера зашифрованы ключом «Персея». В моих архивах есть ключ. Расшифровка начата.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 10 — Утроба Левиафана (goal=generators)
  brief:        [ship_ai] Данные курьера — карта. Переход внутрь сектора охраняет носитель «Левиафан». Сначала внешние генераторы.
@@ -90,7 +90,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Три генератора защищают подход к носителю. Обойти нельзя — только сбить.
  climax:       [ship_ai] Левиафан. Дроны, независимые турели, два генератора щита держат корпус. Сначала генераторы.
  debrief:      [ship_ai] Переход открыт. За ним сектор, которого нет на картах. Врата Архитекторов ведут туда.  //  [captain] Входим. Полный ход.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 11 — Осколки флота (goal=objects)
  brief:        [ship_ai] Мы внутри. Поле обломков — корабли. Маркировка «Персей-1», «Персей-4». Вся экспедиция.
@@ -99,7 +99,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Три ретранслятора среди обломков. Носители выпускают дронов, пока ретрансляторы живы.
  climax:       [ship_ai] Улей — носитель-командир. Выпускает дронов, пока жив. Без него Рой слепой.
  debrief:      [ship_ai] Экипажи не погибли здесь. «Персей» вошёл в сектор — и сектор его переписал. Они зовут себя Пепельным Флотом.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 12 — Солнечный ожог (goal=survive)
  brief:        [ship_ai] Звезда сектора. Излучение греет орудия. Голубая полоса — прохладная тень. Тень движется.
@@ -108,7 +108,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Вспышка. Держись в тени двадцать пять секунд. Вне тени пулемёт перегревается быстрее.
  climax:       (нет реплик)
  debrief:      [ship_ai] Пепельный Флот строит корабли из пепла. Из того, что было «Персеем».
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 13 — Броня и камень (goal=blockade)
  brief:        [ship_ai] Бронированная группа Молотов перекрыла коридор. Нос Молота глотает пули — ракеты обходят броню.
@@ -117,7 +117,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Три узла блокады. Сбей их — откроется проход. Потом совмести корабль с кольцом.
  climax:       (нет реплик)
  debrief:      [ship_ai] Впереди станция «Маяк» — передовая база «Немезиды» в секторе. Двести человек. Флот пойдёт туда.  //  [captain] Тогда мы будем там раньше.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 14 — Линия фронта (goal=station)
  brief:        [ship_ai] «Маяк» под ударом. Наступает весь флот. Прочность станции — под задачей.
@@ -126,7 +126,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Подкрепления идут непрерывно. Двадцать пять секунд до подхода резерва «Немезиды».
  climax:       [ship_ai] Два командира. Таран идёт на станцию, Прелат ставит барьеры. Импульс снимает барьеры в радиусе.
  debrief:      [ship_ai] Станция устояла, резерв подошёл. Сообщение «Маяка»: сигнал флота идёт с флагмана. Технологии Архитекторов.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 15 — Призрак флагмана (goal=clear)
  brief:        [ship_ai] Флагман за линией охраны. Маскировка, телепортация. Обозначение — «Фантом». Жди проявления, я подсвечу.
@@ -135,7 +135,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Ложные цели рассыпаются от одного попадания. Ракеты держи до проявления.
  climax:       [ship_ai] Фантом. Смещается телепортом, бьёт с двух флангов. Лови момент, когда он виден.
  debrief:      [ship_ai] Соколов передавал данные ещё десять лет после исчезновения. Союз слушал и молчал.  //  [captain] И послал нас.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 16 — Чужая граница (goal=escort)
  brief:        [ship_ai] Территория Архитекторов. Разведчик «Зонд» отснял их станции и уходит. У него своя прочность.
@@ -144,7 +144,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Инквизиторы ставят барьеры — импульс снимает их в радиусе. Двадцать пять секунд до выхода «Зонда».
  climax:       [ship_ai] Заслон впереди. Данные «Зонда»: станции не транспортные. Это карантин.
  debrief:      [ship_ai] Сеть Врат — ловушка для всех, кто откроет ворота. «Персей» открыл. Соколов слит с ядром станции. Они зовут его Архонтом.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 17 — Разлом (goal=objects)
  brief:        [ship_ai] Разлом. Гравитационные импульсы смещают корабль, перед импульсом — предупреждение. Три якоря держат разлом открытым.
@@ -153,7 +153,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:(нет реплик)
  climax:       [ship_ai] Прелат: барьеры на всех вокруг и импульсные снаряды. Твой импульс снимает барьеры. Сними его.
  debrief:      [ship_ai] Разлом закрыт, путь к «Маяку» отрезан. Архив Соколова: разлом открыли они — чтобы вернуться домой.  //  [captain] Они бы не вернулись людьми.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 18 — Осада (goal=generators)
  brief:        [ship_ai] Осадная платформа Пепельного Флота. Отсюда идут все подкрепления. Три генератора питают поток охраны.
@@ -162,7 +162,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:(нет реплик)
  climax:       [ship_ai] Улей прикрывает эвакуацию. Пока он жив — дроны не кончатся.
  debrief:      [ship_ai] Платформа разбита. Флот отступает к комплексу Архитекторов. Соколов ждал нас с первого сигнала.  //  [captain] Пусть ждёт.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 19 — Последний рубеж (goal=blockade)
  brief:        [ship_ai] Последний рубеж перед комплексом. Все типы, все элиты, аномалии.  //  [captain] Эфир не выключай.
@@ -171,7 +171,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Три узла блокады под импульсами аномалии. После узлов — кольцо. Промахнёшься — вернётся.
  climax:       [ship_ai] Последние командиры: Баллиста и Таран. Линии заряда и бронированный нос.
  debrief:      [ship_ai] Рубеж пройден. Впереди комплекс — Сердце Бездны. Если Архонт уничтожен, переход схлопнется. Коридор эвакуации рассчитан.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 УРОВЕНЬ 20 — Сердце Бездны (goal=generators)
  brief:        [ship_ai] Финальный комплекс. Сначала внешние генераторы под огнём подкреплений. Потом Архонт: «Персей», слитый с ядром станции.  //  [captain] Заканчиваем то, что они начали.
@@ -180,7 +180,7 @@ VOID SECTOR — АУДИТ ДИАЛОГОВ КАМПАНИИ
  objective chg:[ship_ai] Три внешних генератора. Подкрепления идут, пока они живы. Ракеты — на генераторы.
  climax:       [ship_ai] Архонт Бездны. Четыре генератора на кольце — сначала они, корпус защищён.
  debrief:      [ship_ai] Архонт уничтожен. Переход схлопывается. Коридор эвакуации на твоём курсе.  //  [ship_ai] АРХИВ «ПЕРСЕЯ» // «Скажите дома, что мы не сдались. Что нам было страшно».  //  [captain] Скажем, командор.  //  [ship_ai] Переход закрыт за кормой. Бездна молчит.
- generic events allowed: lowHull, shieldDown, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
+ generic events allowed: lowHull, shieldHalf, shieldDown, hullExposed, emp, overheat, miniKill, reinforcement (общие для всех уровней пулы, не level-specific)
 
 === АВТОМАТИЧЕСКИЕ ПРОВЕРКИ ===
 1) Точные текстовые дубликаты (who+voiceText) по всей кампании: 0

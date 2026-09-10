@@ -24,7 +24,6 @@ const L = (who, text, voiceText) => ({ who, text, voiceText: voiceText || null }
 const storySrc = readFileSync(STORY, 'utf8');
 const storyScript = eval(storySrc.match(/const storyScript=(\[[\s\S]*?\n\]);/)[1]);
 const storyPools = eval('(' + storySrc.match(/const storyPools=(\{[\s\S]*?\n\};)/)[1].slice(0, -1) + ')');
-const storyLoseLines = eval(storySrc.match(/const storyLoseLines=(\[.*?\]);/)[1]);
 
 const enemyDefs = Object.fromEntries(
   [...'scout fighter bomber sniper frigate swarm reaper hammer lancer miner shepherd leech missileboat inquisitor carrier'.split(' ')]
@@ -115,7 +114,7 @@ storyScript.forEach((lvl, i) => {
   lines.push(` objective chg:${preview(lvl.change)}`);
   lines.push(` climax:       ${preview(lvl.climax)}`);
   lines.push(` debrief:      ${preview(lvl.debrief)}`);
-  const genericAllowed = ['lowHull', 'shieldDown', 'emp', 'overheat', 'miniKill', 'reinforcement'];
+  const genericAllowed = ['lowHull', 'shieldHalf', 'shieldDown', 'hullExposed', 'emp', 'overheat', 'miniKill', 'reinforcement'];
   lines.push(` generic events allowed: ${genericAllowed.join(', ')} (общие для всех уровней пулы, не level-specific)`);
   lines.push('');
 });
