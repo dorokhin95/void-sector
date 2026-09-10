@@ -561,16 +561,6 @@ globalThis.VOICE_MANIFEST={
    "duration": 3.095,
    "who": "ship_ai"
   },
-  "b862ac88": {
-   "src": "assets/voice/ru/ship_ai/b862ac88.mp3",
-   "duration": 4.686,
-   "who": "ship_ai"
-  },
-  "ce1525d0": {
-   "src": "assets/voice/ru/ship_ai/ce1525d0.mp3",
-   "duration": 4.047,
-   "who": "ship_ai"
-  },
   "2fc0d8fa": {
    "src": "assets/voice/ru/ship_ai/2fc0d8fa.mp3",
    "duration": 2.747,
@@ -629,6 +619,81 @@ globalThis.VOICE_MANIFEST={
   "178bf4a8": {
    "src": "assets/voice/ru/ship_ai/178bf4a8.mp3",
    "duration": 2.41,
+   "who": "ship_ai"
+  },
+  "ca383820": {
+   "src": "assets/voice/ru/ship_ai/ca383820.mp3",
+   "duration": 3.328,
+   "who": "ship_ai"
+  },
+  "f9c27c08": {
+   "src": "assets/voice/ru/ship_ai/f9c27c08.mp3",
+   "duration": 2.852,
+   "who": "ship_ai"
+  },
+  "05ce87f8": {
+   "src": "assets/voice/ru/ship_ai/05ce87f8.mp3",
+   "duration": 3.061,
+   "who": "ship_ai"
+  },
+  "b0af8388": {
+   "src": "assets/voice/ru/ship_ai/b0af8388.mp3",
+   "duration": 3.955,
+   "who": "ship_ai"
+  },
+  "49920cd8": {
+   "src": "assets/voice/ru/ship_ai/49920cd8.mp3",
+   "duration": 3.409,
+   "who": "ship_ai"
+  },
+  "f1e279a8": {
+   "src": "assets/voice/ru/ship_ai/f1e279a8.mp3",
+   "duration": 4.268,
+   "who": "ship_ai"
+  },
+  "4b674cc8": {
+   "src": "assets/voice/ru/ship_ai/4b674cc8.mp3",
+   "duration": 3.502,
+   "who": "ship_ai"
+  },
+  "bf6a1648": {
+   "src": "assets/voice/ru/ship_ai/bf6a1648.mp3",
+   "duration": 3.142,
+   "who": "ship_ai"
+  },
+  "3593d7ca": {
+   "src": "assets/voice/ru/ship_ai/3593d7ca.mp3",
+   "duration": 2.84,
+   "who": "ship_ai"
+  },
+  "89132230": {
+   "src": "assets/voice/ru/ship_ai/89132230.mp3",
+   "duration": 3.328,
+   "who": "ship_ai"
+  },
+  "5508a708": {
+   "src": "assets/voice/ru/ship_ai/5508a708.mp3",
+   "duration": 2.794,
+   "who": "ship_ai"
+  },
+  "014222ea": {
+   "src": "assets/voice/ru/ship_ai/014222ea.mp3",
+   "duration": 3.235,
+   "who": "ship_ai"
+  },
+  "d9063250": {
+   "src": "assets/voice/ru/ship_ai/d9063250.mp3",
+   "duration": 2.77,
+   "who": "ship_ai"
+  },
+  "b862ac88": {
+   "src": "assets/voice/ru/ship_ai/b862ac88.mp3",
+   "duration": 4.686,
+   "who": "ship_ai"
+  },
+  "ce1525d0": {
+   "src": "assets/voice/ru/ship_ai/ce1525d0.mp3",
+   "duration": 4.047,
    "who": "ship_ai"
   },
   "8a3bf278": {
