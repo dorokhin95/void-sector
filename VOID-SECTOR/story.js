@@ -518,8 +518,17 @@ function storyBind(){
   // вариант обрывал голос фиксированной задержкой в campaignDirector). debriefPending
   // держит ангар закрытым, пока не доиграет последняя строка; см. storyTick/storyClear
   // и storyAPI.isPostLevelDebriefPending, которую опрашивает campaignDirector (campaign.js).
+  //
+  // Раньше здесь было storyQueue.length=0 перед постановкой debrief — если игрок добивал
+  // последнего врага climax'а быстро (climax из 2+ строк, например уровень 3 "Засада":
+  // реплика ИИ + ответ капитана "Земной код. Запиши всё."), это молча стирало ещё НЕ
+  // начатую вторую строку climax'а из очереди, будто она оборвалась. storySayAll(s.debrief)
+  // ниже просто ДОБАВЛЯЕТ debrief в конец очереди — storySay() сам безопасно уберёт разве
+  // что зависшую ситуативную (generic) реплику, но никогда не тронет уже стоящую в очереди
+  // сценарную (см. её же логику приоритета выше). Debrief проиграет ПОСЛЕ того, как
+  // доиграет всё, что реально было запланировано сценарием — так и должно быть.
   if(s?.debrief?.length&&level<19&&storyOnce('debrief'+level)){
-   storyQueue.length=0;storyState.debriefPending=true;storySayAll(s.debrief);
+   storyState.debriefPending=true;storySayAll(s.debrief);
   }
  });
  on('shopOpen',({level})=>{storyClear();storyRenderTranscript(level)});
