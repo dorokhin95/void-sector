@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VOID SECTOR — кастинг звука выстрела (GATE 4)</title>
+<style>
+:root{color-scheme:dark;--cyan:#98f8ed;--muted:#8997aa}
+body{margin:0;background:#070c17;color:#f2f6ff;font:14px Manrope,Arial,sans-serif;padding:28px 32px 60px}
+h1{font-size:22px;letter-spacing:2px;margin:0 0 6px}
+p.lead{color:#aab8c9;max-width:900px;line-height:1.6;margin:0 0 22px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+.card{border:1px solid #98f8ed33;background:#0b1621ed;padding:18px 20px}
+.card h2{font-size:16px;letter-spacing:2px;margin:0 0 4px;color:var(--cyan)}
+.card .tag{font-size:11px;letter-spacing:2px;color:var(--muted);margin-bottom:10px}
+.card p{color:#a8bccc;line-height:1.55;font-size:13px;min-height:78px}
+.row{display:flex;flex-wrap:wrap;gap:8px}
+button{font:inherit;color:inherit;cursor:pointer;border:1px solid #ffffff25;background:#10203160;border-radius:4px;padding:11px 14px;font-size:12px;letter-spacing:1px}
+button:hover{background:#2a495e}
+button.primary{background:var(--cyan);color:#08232b;border:0;font-weight:800}
+.bar{margin:22px 0 14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;color:#b8c9d6;font-size:13px}
+.bar label{display:flex;align-items:center;gap:8px}
+input[type=range]{accent-color:#98f8ed}
+.note{font-size:12px;color:#8aa0b3;line-height:1.6;max-width:900px}
+.ref{border-color:#ffffff1a}
+.ref h2{color:#c9d3dc}
+</style>
+</head>
+<body>
+<h1>КАСТИНГ ЗВУКА ВЫСТРЕЛА · GATE 4</h1>
+<p class="lead">Три направления для орудия игрока. Одна и та же последовательность у каждого: одиночный выстрел, очередь из пяти, стрельба на максимальной скорострельности (2 с, 4 ствола), критический выстрел. Всё синтезируется тем же Web Audio-кодом, который пойдёт в <code>audio.js</code> — сэмплов здесь нет, чтобы сравнивать именно сигнатуру. Сначала нажми «Включить звук» (браузеру нужен жест).</p>
+
+<div class="bar">
+ <button class="primary" id="unlock">ВКЛЮЧИТЬ ЗВУК</button>
+ <label>Громкость <input type="range" id="vol" min="0" max="1" step=".02" value=".6"></label>
+ <label><input type="checkbox" id="bg"> Фон боя (низкий гул + взрыв каждые 3 с) — проверить читаемость поверх шума</label>
+</div>
+
+<div class="grid">
+ <div class="card ref">
+  <h2>REF · ТЕКУЩИЙ</h2>
+  <div class="tag">для сравнения</div>
+  <p>Нынешняя процедурная подпись из игры (без Kenney-сэмпла): короткий шум + синусный свип 900→200 Гц. То, от чего уходим.</p>
+  <div class="row" data-gun="ref"></div>
+ </div>
+ <div class="card">
+  <h2>A · MASS DRIVER</h2>
+  <div class="tag">тяжёлый кинетический</div>
+  <p>Сухой удар: щелчок-транзиент, плотное низко-среднее тело 110→60 Гц, металлический отзвук затвора, почти без хвоста. Ощущение массы снаряда, а не энергии.</p>
+  <div class="row" data-gun="A"></div>
+ </div>
+ <div class="card">
+  <h2>B · PULSE CANNON</h2>
+  <div class="tag">энергетический импульс</div>
+  <p>Резкий пробой: транзиент + короткий пилообразный импульс 420→180 Гц через фильтр, тело на 160 Гц, очень короткий высокочастотный «зип». Более быстрый и злой, чем A.</p>
+  <div class="row" data-gun="B"></div>
+ </div>
+ <div class="card">
+  <h2>C · MILITARY SCI-FI</h2>
+  <div class="tag">гибрид: кинетика + механика</div>
+  <p>Хлопок-крак 2.5 кГц, «чанк» тела через сатурацию 240→90 Гц, два щелчка перезарядки затвора через 25 мс, слабый резонансный пинг 2 кГц. Самый «военный» из трёх.</p>
+  <div class="row" data-gun="C"></div>
+ </div>
+</div>
+
+<p class="note" style="margin-top:22px">Критический выстрел у каждого кандидата — тот же тип оружия, но глубже и тяжелее (дополнительный саб-слой и транзиент), не просто громче. У всех выстрелов ±3% случайной вариации высоты и ±1.5 дБ громкости — как будет в игре. Выбор направления (A/B/C) делает человек; после выбора под него будут переработаны <code>gun</code>, <code>critShot</code>, <code>bolt</code>, <code>plasma</code>, <code>rail</code> в обеих версиях.</p>
+
+<script>
+'use strict';
+// ---- Общая инфраструктура превью (аналог master/compressor/sfxBus из audio.js) ----
+let ctx=null,master,comp,noiseBuf,bgTimer=null,bgNodes=null;
+const $=id=>document.getElementById(id);
+function ensure(){
+ if(ctx)return ctx;
+ ctx=new (window.AudioContext||window.webkitAudioContext)({latencyHint:'interactive'});
+ master=ctx.createGain();master.gain.value=parseFloat($('vol').value);
+ comp=ctx.createDynamicsCompressor();comp.threshold.value=-16;comp.knee.value=14;comp.ratio.value=4;comp.attack.value=.004;comp.release.value=.22;
+ master.connect(comp);comp.connect(ctx.destination);
+ const len=ctx.sampleRate*2,b=ctx.createBuffer(1,len,ctx.sampleRate),d=b.getChannelData(0);for(let i=0;i<len;i++)d[i]=Math.random()*2-1;noiseBuf=b;
+ return ctx;
+}
+$('vol').oninput=()=>{if(master)master.gain.value=parseFloat($('vol').value)};
+$('unlock').onclick=()=>{ensure();ctx.resume();$('unlock').textContent='ЗВУК ВКЛЮЧЁН';};
+
+// ---- Примитивы в стиле audio.js (те же имена, чтобы код переносился 1:1) ----
+const rnd=()=>Math.random(),rv=k=>1+(rnd()*2-1)*k;
+function env(p,t,a,peak,d,tail=.0005){p.setValueAtTime(0,t);p.linearRampToValueAtTime(Math.max(peak,.0006),t+Math.max(a,.001));p.exponentialRampToValueAtTime(tail,t+Math.max(a,.001)+Math.max(d,.005))}
+function sweep(p,f0,f1,t0,t1){p.setValueAtTime(Math.max(1,f0),t0);p.exponentialRampToValueAtTime(Math.max(1,f1),t1)}
+function G(dest,t,a,peak,d,tail){const g=ctx.createGain();g.connect(dest);env(g.gain,t,a,peak,d,tail);return g}
+function F(type,f,q,dest){const x=ctx.createBiquadFilter();x.type=type;x.frequency.value=f;x.Q.value=q;x.connect(dest);return x}
+function O(type,f,t0,t1,dest,detune=0){const o=ctx.createOscillator();o.type=type;o.frequency.value=f;if(detune)o.detune.value=detune;o.connect(dest);o.start(t0);o.stop(t1+.02);return o}
+function N(t0,t1,dest){const s=ctx.createBufferSource();s.buffer=noiseBuf;s.loop=true;s.connect(dest);s.start(t0,rnd()*1.7);s.stop(t1+.02);return s}
+function shaper(k,dest){const x=ctx.createWaveShaper();const n=1024,c=new Float32Array(n);for(let i=0;i<n;i++){const v=i/(n-1)*2-1;c[i]=(1+k)*v/(1+k*Math.abs(v))}x.curve=c;x.oversample='2x';x.connect(dest);return x}
+function click(dest,t,vol,hp=2500,dur=.02){N(t,t+dur+.02,F('highpass',hp,.7,G(dest,t,.001,vol,dur)))}
+function boom(dest,t,f0,f1,dur,vol){const g=G(dest,t,.004,vol,dur);sweep(O('sine',f0,t,t+dur+.05,g).frequency,f0,f1,t,t+dur*.8)}
+// Голос выстрела: небольшая вариация громкости ±1.5 дБ и высоты ±3% (п.30/52 задания)
+function voice(t,gainMul=1){const v=ctx.createGain();v.gain.value=gainMul*Math.pow(10,(rnd()*3-1.5)/20);v.connect(master);return v}
+
+// ---- Кандидаты. Сигнатура функции: (t, {count, critical}) — как SFX.gun(v,t,o) в игре ----
+const GUNS={
+ // REF — текущая процедурная подпись игры (без Kenney laserSmall)
+ ref(t,o={}){const n=Math.max(1,Math.min(4,(o.count||2)/2)),A=.45+n*.12,p=rv(.08),v=voice(t);
+  N(t,t+.05,F('highpass',1400*p,.8,G(v,t,.002,A*.5,.03)));
+  const c=O('sine',900*p,t,t+.09,G(v,t,.001,A*.5,.06));sweep(c.frequency,900*p,200*p,t,t+.07);
+  if(o.critical){const g=G(v,t,.004,.22,.11);sweep(O('triangle',2600*p,t,t+.15,g).frequency,2600*p,1700,t,t+.11)}},
+ // A — MASS DRIVER: транзиент → плотное низко-среднее тело → металлический затвор → микро-хвост
+ A(t,o={}){const p=rv(.03),n=Math.max(1,Math.min(4,(o.count||2)/2)),A=.5+n*.08,v=voice(t);
+  click(v,t,.55*A,1800,.012);                                             // 1. transient crack
+  boom(v,t,110*p,60*p,.075,.7*A);                                          // 2. body 110→60 Гц, 75 мс
+  const body=G(v,t,.002,.3*A,.06),bl=F('lowpass',900,1.2,body);O('triangle',95*p,t,t+.09,shaper(1.8,bl));
+  N(t+.004,t+.05,F('bandpass',3200*p,8,G(v,t+.004,.002,.16*A,.04)));     // 3. mechanical ring (резонанс 3.2 кГц)
+  N(t+.02,t+.07,F('lowpass',700,.8,G(v,t+.02,.006,.08*A,.045)));         // 4. очень короткий хвост
+  if(o.critical){boom(v,t,55*p,38,.14,.55);click(v,t+.008,.3,900,.02);N(t,t+.09,F('bandpass',2400*p,6,G(v,t,.002,.14,.07)))}},
+ // B — PULSE CANNON: транзиент → пилообразный импульс 420→180 → тело 160 Гц → короткий зип
+ B(t,o={}){const p=rv(.03),n=Math.max(1,Math.min(4,(o.count||2)/2)),A=.45+n*.09,v=voice(t);
+  click(v,t,.45*A,3000,.008);                                             // 1. transient
+  const g=G(v,t,.002,.42*A,.045),lp=F('lowpass',2200,1.5,g);sweep(O('sawtooth',420*p,t,t+.06,lp).frequency,420*p,180*p,t,t+.03); // 2. импульс
+  const b=G(v,t+.003,.003,.32*A,.06);O('square',160*p,t,t+.08,F('lowpass',800,1,b));                                           // 3. тело
+  const z=G(v,t+.01,.004,.07*A,.04);sweep(O('sine',2400*p,t+.01,t+.06,z).frequency,2400*p,1200*p,t+.01,t+.05);                // 4. зип, 40 мс — не «пиу»
+  if(o.critical){boom(v,t,70*p,42,.12,.5);const q=G(v,t,.002,.2,.09),f=F('bandpass',1200*p,3,q);sweep(f.frequency,1200*p,500,t,t+.09);N(t,t+.1,f)}},
+ // C — MILITARY SCI-FI: крак → «чанк» через сатурацию → два щелчка затвора → слабый пинг
+ C(t,o={}){const p=rv(.03),n=Math.max(1,Math.min(4,(o.count||2)/2)),A=.5+n*.08,v=voice(t);
+  click(v,t,.6*A,2500,.01);                                               // 1. crack
+  const b=G(v,t,.002,.55*A,.05),lp=F('lowpass',1100,1,b);sweep(O('triangle',240*p,t,t+.07,shaper(3,lp)).frequency,240*p,90*p,t,t+.05); // 2. chunk
+  boom(v,t,80*p,50,.06,.35*A);
+  click(v,t+.028,.22*A,4000,.008);click(v,t+.052,.16*A,4200,.008);         // 3. перезарядка затвора: 2 щелчка
+  N(t+.006,t+.06,F('bandpass',2000*p,10,G(v,t+.006,.002,.1*A,.05)));      // 4. резонансный пинг
+  if(o.critical){boom(v,t,52*p,36,.15,.6);click(v,t+.004,.35,1500,.018);N(t,t+.12,F('bandpass',900*p,4,G(v,t,.003,.18,.1)))}}
+};
+
+// ---- Сценарии прослушивания ----
+function fire(id,pattern){
+ ensure();ctx.resume();const t0=ctx.currentTime+.05,gun=GUNS[id];
+ if(pattern==='single')gun(t0,{count:2});
+ else if(pattern==='burst')for(let i=0;i<5;i++)gun(t0+i*.11,{count:2});
+ else if(pattern==='max')for(let i=0;i<36;i++)gun(t0+i*.055,{count:4});   // ~2 с на максимальной скорострельности, 4 ствола
+ else if(pattern==='crit')gun(t0,{count:2,critical:true});
+}
+for(const row of document.querySelectorAll('[data-gun]')){
+ const id=row.dataset.gun;
+ for(const [pat,label] of [['single','ОДИНОЧНЫЙ'],['burst','ОЧЕРЕДЬ ×5'],['max','МАКС. ТЕМП 2 С'],['crit','КРИТ']]){
+  const b=document.createElement('button');b.textContent=label;b.onclick=()=>fire(id,pat);row.appendChild(b);
+ }
+}
+// Фон боя: тихий низкий гул + взрыв каждые 3 с (упрощённая копия explosionMedium), чтобы оценить читаемость выстрела в микcе
+$('bg').onchange=e=>{
+ ensure();ctx.resume();
+ if(e.target.checked){
+  const g=ctx.createGain();g.gain.value=.12;g.connect(master);const lp=F('lowpass',180,1,g);N(ctx.currentTime,ctx.currentTime+9999,lp);bgNodes=g;
+  const blast=()=>{const t=ctx.currentTime,v=voice(t,.9),gg=G(v,t,.004,.7,.7),f=F('lowpass',3000,.7,gg);sweep(f.frequency,3000,80,t,t+.7);N(t,t+.72,f);boom(v,t,55*rv(.08),42,.6,.55)};
+  blast();bgTimer=setInterval(blast,3000);
+ }else{clearInterval(bgTimer);bgTimer=null;if(bgNodes){try{bgNodes.disconnect()}catch{}bgNodes=null}}
+};
+</script>
+</body>
+</html>
