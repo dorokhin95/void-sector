@@ -176,7 +176,55 @@ html.compact-landscape #comms .commsBar{margin-top:4px!important}
 .shopActions{display:flex;gap:10px}
 .shopActions button{flex:1;min-height:48px;margin:0;padding:10px 12px;font-size:12px;letter-spacing:1px}
 .shopActions .primary{flex:1.4;min-width:0}
-html.compact-landscape #shop .shopTop h2{font-size:16px}
-html.compact-landscape #shop .hangar{gap:4px}
-html.compact-landscape #storyReport summary{min-height:40px}
+/* ===== Компактный альбомный ангар (html.compact-landscape, высота ≤650px) =====
+   Реальный тест на телефоне (~844×390) показал: шапка/категории/пояснение/summary
+   съедали высоту так, что карточки апгрейдов были видны только наполовину. Здесь —
+   декоративное убирается совсем (eyebrow, hint, buildSummary), сводка миссии
+   становится оверлеем поверх .hangar (не толкает скролл апгрейдов), карточки апгрейдов
+   переверстаны в 2 строки на CSS Grid (без изменения HTML/JS), а «ДАЛЕЕ: …» переезжает
+   второй строкой внутрь кнопки «ПРОДОЛЖИТЬ →» вместо отдельной полосы. */
+html.compact-landscape #shop .hangar{position:relative;gap:4px}
+html.compact-landscape #shop .shopTop{gap:8px}
+html.compact-landscape #shop .shopTop .eyebrow{display:none}/* декоративный лейбл — п.28 ТЗ */
+html.compact-landscape #shop .shopTop h2{font-size:14px;margin:0;letter-spacing:.5px}
+html.compact-landscape #shop .shopTop>strong{font-size:15px}
+html.compact-landscape #buildSummary{display:none}/* п.30: не отдельная строка между категориями и апгрейдами */
+html.compact-landscape .shopHint{display:none}/* п.31: не нужно повторять после каждого уровня */
+html.compact-landscape #shopCategories button{min-height:40px}
+/* Сводка миссии — компактная кнопка-раскрывашка; открытое содержимое — оверлей поверх
+   .hangar (position:relative выше), а не блок в потоке #shopScroll: не сдвигает и не
+   сбрасывает scrollTop апгрейдов при открытии/закрытии (п.32). */
+html.compact-landscape #storyReport{margin:0}
+html.compact-landscape #storyReport summary{min-height:36px;padding:0 10px;font-size:10px}
+html.compact-landscape #storyReport[open] .reportBody{
+ position:absolute;left:calc(14px + var(--safe-left));right:calc(14px + var(--safe-right));
+ top:calc(8px + var(--safe-top));bottom:calc(8px + var(--safe-bottom));z-index:20;
+ margin:0;padding:14px;background:#0c1a27f5;border:1px solid #98f8ed44;overflow-y:auto;
+ -webkit-overflow-scrolling:touch;box-shadow:0 12px 40px #000a;
+}
+/* Карточки апгрейдов: 2 строки на CSS Grid поверх тех же 4 элементов (small/strong/span/b)
+   из renderShop() — без изменения HTML. Ряд 1: название + цена. Ряд 2: уровень + эффект
+   (однострочный, обрезается многоточием, а не 2-строчным клампом — п.34 ТЗ, высота карточки
+   держится near 56-64px независимо от длины описания). */
+html.compact-landscape #upgrades{gap:6px}
+html.compact-landscape .upgrade{
+ display:grid;grid-template-columns:1fr auto;column-gap:8px;row-gap:2px;
+ align-items:center;min-height:56px;padding:8px 10px;
+}
+html.compact-landscape .upgrade strong{grid-column:1;grid-row:1;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.compact-landscape .upgrade b{grid-column:2;grid-row:1;font-size:12px;white-space:nowrap;justify-self:end}
+html.compact-landscape .upgrade small{grid-column:1;grid-row:2;font-size:10px;white-space:nowrap}
+html.compact-landscape .upgrade span{grid-column:2;grid-row:2;display:block;-webkit-line-clamp:unset;font-size:10px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;justify-self:end;text-align:right;max-width:100%}
+/* Футер: «ДАЛЕЕ: …» (#nextWave) переносится JS'ом (mobile-controls.js) внутрь #continue
+   вторым, более мелким текстом — здесь только раскладка в 2 строки для самой кнопки. */
+html.compact-landscape .shopActions{gap:8px}
+html.compact-landscape .shopActions button{min-height:44px;padding:6px 10px}
+html.compact-landscape #continue{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.15}
+html.compact-landscape #continue small{display:block;font-size:9px;font-weight:400;letter-spacing:.3px;opacity:.82;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+/* saveState: не отдельная полоса — короткий тост поверх шапки, гаснет через ~2.5с
+   (запускает mobile-controls.js через MutationObserver, здесь только сама анимация;
+   ошибка автосохранения всё равно успевает быть прочитана, п.33 ТЗ). */
+html.compact-landscape #saveState{position:absolute;right:0;top:calc(-22px - var(--safe-top));font-size:9px;letter-spacing:.3px;background:#0c1a27ee;padding:3px 8px;border:1px solid #98f8ed33;pointer-events:none;opacity:0;white-space:nowrap;z-index:5}
+html.compact-landscape #saveState.toast{animation:saveToast 2.6s ease forwards}
+@keyframes saveToast{0%{opacity:0;transform:translateY(-3px)}12%{opacity:1;transform:translateY(0)}75%{opacity:1}100%{opacity:0}}
 @media(orientation:portrait){#upgrades{grid-template-columns:minmax(0,1fr)}#shop .shopTop h2{font-size:20px}}

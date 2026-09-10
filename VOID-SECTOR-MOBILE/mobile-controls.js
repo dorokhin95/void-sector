@@ -300,6 +300,19 @@ if(typeof on==='function'){
  on('finish',d=>vibrate(d.win?[0,20,40,20,40,60]:[0,70]));
 }
 
+// ---------- Компактный тост для #saveState в альбомном ангаре (style.css: html.compact-
+// landscape #saveState) ----------
+// campaign.js/systems.js (общие с PC-версией) просто пишут в #saveState.textContent —
+// не трогаем их, а ловим изменение текста здесь и проигрываем CSS-анимацию затухания
+// (перезапуск через toggle класса с принудительным reflow). На PC и в портретной
+// раскладке класс .toast добавляется так же, но там для него нет анимации в style.css —
+// эффекта не даёт, эта наблюдалка полностью безопасна вне компактного альбомного режима.
+(function watchSaveStateToast(){
+ const el=document.getElementById('saveState');if(!el)return;
+ const restart=()=>{el.classList.remove('toast');void el.offsetWidth;el.classList.add('toast')};
+ new MutationObserver(restart).observe(el,{characterData:true,childList:true,subtree:true});
+})();
+
 // ---------- Предохранители от системных жестов, мешающих управлению ----------
 // Глобального preventDefault на touchmove здесь больше нет: он блокировал
 // прокрутку #menu/#shop. Джойстики и canvas защищены собственным touch-action:
