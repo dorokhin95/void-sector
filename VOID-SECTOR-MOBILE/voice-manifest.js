@@ -6,6 +6,56 @@
 globalThis.VOICE_MANIFEST={
  "version": 1,
  "lines": {
+  "18698398": {
+   "src": "assets/voice/ru/leya/18698398.mp3",
+   "duration": 3.275,
+   "who": "leya"
+  },
+  "47877948": {
+   "src": "assets/voice/ru/unknown/47877948.mp3",
+   "duration": 4.875,
+   "who": "unknown"
+  },
+  "56854224": {
+   "src": "assets/voice/ru/voronova/56854224.mp3",
+   "duration": 2.175,
+   "who": "voronova"
+  },
+  "61410010": {
+   "src": "assets/voice/ru/leya/61410010.mp3",
+   "duration": 4.763,
+   "who": "leya"
+  },
+  "65953613": {
+   "src": "assets/voice/ru/voronova/65953613.mp3",
+   "duration": 4,
+   "who": "voronova"
+  },
+  "80460340": {
+   "src": "assets/voice/ru/voronova/80460340.mp3",
+   "duration": 4.162,
+   "who": "voronova"
+  },
+  "90552180": {
+   "src": "assets/voice/ru/voronova/90552180.mp3",
+   "duration": 2.375,
+   "who": "voronova"
+  },
+  "94886862": {
+   "src": "assets/voice/ru/voronova/94886862.mp3",
+   "duration": 3.812,
+   "who": "voronova"
+  },
+  "97705012": {
+   "src": "assets/voice/ru/voronova/97705012.mp3",
+   "duration": 3.362,
+   "who": "voronova"
+  },
+  "97800020": {
+   "src": "assets/voice/ru/markov/97800020.mp3",
+   "duration": 3.7,
+   "who": "markov"
+  },
   "b5369ec8": {
    "src": "assets/voice/ru/voronova/b5369ec8.mp3",
    "duration": 4.938,
@@ -33,12 +83,12 @@ globalThis.VOICE_MANIFEST={
   },
   "f6770a48": {
    "src": "assets/voice/ru/leya/f6770a48.mp3",
-   "duration": 6.425,
+   "duration": 6.813,
    "who": "leya"
   },
   "97ff8ac0": {
    "src": "assets/voice/ru/voronova/97ff8ac0.mp3",
-   "duration": 4.45,
+   "duration": 4.925,
    "who": "voronova"
   },
   "61659e90": {
@@ -65,11 +115,6 @@ globalThis.VOICE_MANIFEST={
    "src": "assets/voice/ru/markov/d8ade4c0.mp3",
    "duration": 5.088,
    "who": "markov"
-  },
-  "97705012": {
-   "src": "assets/voice/ru/voronova/97705012.mp3",
-   "duration": 3.362,
-   "who": "voronova"
   },
   "cb467102": {
    "src": "assets/voice/ru/leya/cb467102.mp3",
@@ -115,11 +160,6 @@ globalThis.VOICE_MANIFEST={
    "src": "assets/voice/ru/voronova/06987ea8.mp3",
    "duration": 2.9,
    "who": "voronova"
-  },
-  "18698398": {
-   "src": "assets/voice/ru/leya/18698398.mp3",
-   "duration": 3.275,
-   "who": "leya"
   },
   "dc804c24": {
    "src": "assets/voice/ru/leya/dc804c24.mp3",
@@ -191,11 +231,6 @@ globalThis.VOICE_MANIFEST={
    "duration": 2.538,
    "who": "voronova"
   },
-  "94886862": {
-   "src": "assets/voice/ru/voronova/94886862.mp3",
-   "duration": 3.812,
-   "who": "voronova"
-  },
   "899451a0": {
    "src": "assets/voice/ru/leya/899451a0.mp3",
    "duration": 5.114,
@@ -208,7 +243,7 @@ globalThis.VOICE_MANIFEST={
   },
   "b21870a0": {
    "src": "assets/voice/ru/markov/b21870a0.mp3",
-   "duration": 3.925,
+   "duration": 5.813,
    "who": "markov"
   },
   "17f45958": {
@@ -561,11 +596,6 @@ globalThis.VOICE_MANIFEST={
    "duration": 6.938,
    "who": "leya"
   },
-  "90552180": {
-   "src": "assets/voice/ru/voronova/90552180.mp3",
-   "duration": 2.375,
-   "who": "voronova"
-  },
   "ee1b6388": {
    "src": "assets/voice/ru/voronova/ee1b6388.mp3",
    "duration": 2.675,
@@ -618,7 +648,7 @@ globalThis.VOICE_MANIFEST={
   },
   "fd981080": {
    "src": "assets/voice/ru/leya/fd981080.mp3",
-   "duration": 8.0,
+   "duration": 8,
    "who": "leya"
   },
   "adfbf588": {
@@ -941,11 +971,6 @@ globalThis.VOICE_MANIFEST={
    "duration": 3.914,
    "who": "voronova"
   },
-  "97800020": {
-   "src": "assets/voice/ru/markov/97800020.mp3",
-   "duration": 3.7,
-   "who": "markov"
-  },
   "402949c4": {
    "src": "assets/voice/ru/leya/402949c4.mp3",
    "duration": 2.85,
@@ -1016,11 +1041,6 @@ globalThis.VOICE_MANIFEST={
    "duration": 7.226,
    "who": "leya"
   },
-  "80460340": {
-   "src": "assets/voice/ru/voronova/80460340.mp3",
-   "duration": 4.162,
-   "who": "voronova"
-  },
   "eb1dbe10": {
    "src": "assets/voice/ru/spectre/eb1dbe10.mp3",
    "duration": 0.875,
@@ -1070,11 +1090,6 @@ globalThis.VOICE_MANIFEST={
    "src": "assets/voice/ru/leya/ab6a2610.mp3",
    "duration": 3.95,
    "who": "leya"
-  },
-  "65953613": {
-   "src": "assets/voice/ru/voronova/65953613.mp3",
-   "duration": 4.0,
-   "who": "voronova"
   },
   "9771c638": {
    "src": "assets/voice/ru/leya/9771c638.mp3",
@@ -1158,7 +1173,7 @@ globalThis.VOICE_MANIFEST={
   },
   "9d25950a": {
    "src": "assets/voice/ru/unknown/9d25950a.mp3",
-   "duration": 3.0,
+   "duration": 3,
    "who": "unknown"
   },
   "2b826ab0": {
@@ -1170,11 +1185,6 @@ globalThis.VOICE_MANIFEST={
    "src": "assets/voice/ru/voronova/a024afe0.mp3",
    "duration": 4.362,
    "who": "voronova"
-  },
-  "47877948": {
-   "src": "assets/voice/ru/unknown/47877948.mp3",
-   "duration": 4.875,
-   "who": "unknown"
   },
   "a8e14578": {
    "src": "assets/voice/ru/leya/a8e14578.mp3",
@@ -1248,7 +1258,7 @@ globalThis.VOICE_MANIFEST={
   },
   "99f724d8": {
    "src": "assets/voice/ru/leya/99f724d8.mp3",
-   "duration": 5.0,
+   "duration": 5,
    "who": "leya"
   },
   "7416dc88": {
@@ -1403,7 +1413,7 @@ globalThis.VOICE_MANIFEST={
   },
   "8dce4ab8": {
    "src": "assets/voice/ru/voronova/8dce4ab8.mp3",
-   "duration": 7.0,
+   "duration": 7,
    "who": "voronova"
   },
   "da6d5d90": {
@@ -1423,7 +1433,7 @@ globalThis.VOICE_MANIFEST={
   },
   "06a6e0d8": {
    "src": "assets/voice/ru/voronova/06a6e0d8.mp3",
-   "duration": 5.0,
+   "duration": 5,
    "who": "voronova"
   },
   "0f589562": {
@@ -1611,11 +1621,6 @@ globalThis.VOICE_MANIFEST={
    "duration": 3.3,
    "who": "voronova"
   },
-  "61410010": {
-   "src": "assets/voice/ru/leya/61410010.mp3",
-   "duration": 4.763,
-   "who": "leya"
-  },
   "1cfd22aa": {
    "src": "assets/voice/ru/voronova/1cfd22aa.mp3",
    "duration": 2.362,
@@ -1761,11 +1766,6 @@ globalThis.VOICE_MANIFEST={
    "duration": 2.688,
    "who": "leya"
   },
-  "56854224": {
-   "src": "assets/voice/ru/voronova/56854224.mp3",
-   "duration": 2.175,
-   "who": "voronova"
-  },
   "424ddd40": {
    "src": "assets/voice/ru/spectre/424ddd40.mp3",
    "duration": 1.387,
@@ -1788,7 +1788,7 @@ globalThis.VOICE_MANIFEST={
   },
   "b6b5fd78": {
    "src": "assets/voice/ru/leya/b6b5fd78.mp3",
-   "duration": 4.0,
+   "duration": 4,
    "who": "leya"
   },
   "570064c0": {
@@ -1843,7 +1843,7 @@ globalThis.VOICE_MANIFEST={
   },
   "6ce5ea08": {
    "src": "assets/voice/ru/leya/6ce5ea08.mp3",
-   "duration": 3.0,
+   "duration": 3,
    "who": "leya"
   },
   "ab000bf8": {

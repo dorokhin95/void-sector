@@ -18,38 +18,6 @@
   },
   {
    "reason": "unknown-token",
-   "token": "R",
-   "count": 1,
-   "examples": [
-    "f6770a48"
-   ]
-  },
-  {
-   "reason": "unknown-token",
-   "token": "E",
-   "count": 1,
-   "examples": [
-    "97ff8ac0"
-   ]
-  },
-  {
-   "reason": "unknown-token",
-   "token": "Shift",
-   "count": 1,
-   "examples": [
-    "97ff8ac0"
-   ]
-  },
-  {
-   "reason": "unknown-token",
-   "token": "2260",
-   "count": 1,
-   "examples": [
-    "b21870a0"
-   ]
-  },
-  {
-   "reason": "unknown-token",
    "token": "3",
    "count": 1,
    "examples": [
@@ -73,8 +41,8 @@
    ]
   }
  ],
- "totalDuration": 1714.4,
- "totalBytes": 10517352,
+ "totalDuration": 1717.15,
+ "totalBytes": 10533912,
  "speakerFallbacks": {
   "voronova": {
    "requested": "ru_bel_larisa",
