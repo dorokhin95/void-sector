@@ -135,3 +135,48 @@ html.compact-landscape #comms .commsName{font-size:8px!important;margin-bottom:3
 html.compact-landscape #comms .commsBar{margin-top:4px!important}
 
 .abilities button.pressed,#stab.pressed{background:#2a495e;transform:scale(.95)}
+
+/* ===== Mobile post-level hangar: 4 зоны, один владелец вертикального скролла =====
+   header (shopTop) / category tabs + build summary / #shopScroll (только он скроллится) / action bar.
+   Repair и Continue видны без прокрутки страницы; #shop и .hangar не скроллятся вовсе.
+   Высота — из --app-height (mobile-controls.js), safe-area — из --safe-*; отдельной
+   системы расчёта viewport нет. */
+#shop{padding:0;overflow:hidden;place-items:stretch}
+#shop .hangar{width:100%;max-width:none;height:var(--app-height,100vh);max-height:none;padding:calc(8px + var(--safe-top)) calc(14px + var(--safe-right)) calc(8px + var(--safe-bottom)) calc(14px + var(--safe-left));display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:6px;overflow:hidden;border:0;overscroll-behavior:contain;touch-action:manipulation}
+#shop .shopTop{gap:12px;align-items:center}
+#shop .shopTop .eyebrow{font-size:10px}
+#shop .shopTop h2{font-size:18px;margin:3px 0 0;line-height:1.15}
+#shop .shopTop>strong{font-size:18px;white-space:nowrap}
+.shopNav{min-width:0}
+#shopCategories{display:flex;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;gap:6px;margin:0;padding:2px 0 4px;scrollbar-width:none;touch-action:pan-x;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+#shopCategories::-webkit-scrollbar{display:none}
+#shopCategories button{flex:0 0 auto;min-height:44px;padding:0 14px;font-size:12px;letter-spacing:1px;white-space:nowrap}
+#buildSummary{margin:3px 0 0;font-size:11px;letter-spacing:.3px;color:#9ab8c7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#shopScroll{min-height:0;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;-webkit-overflow-scrolling:touch;padding-right:2px}
+.shopHint{margin:0 0 8px;font-size:12px;color:#8fa3b3;line-height:1.4}
+#storyReport{margin:0 0 8px;border:1px solid #98f8ed22;background:#0c1a2790}
+#storyReport summary{cursor:pointer;list-style:none;padding:0 12px;min-height:44px;display:flex;align-items:center;font-size:11px;letter-spacing:2px;font-weight:700;color:#98f8ed;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#storyReport summary::-webkit-details-marker{display:none}
+#storyReport summary::before{content:'▸';margin-right:8px;font-size:12px}
+#storyReport[open] summary::before{content:'▾'}
+#storyReport .reportBody{padding:0 12px 10px}
+#storyReport h3{font-size:10px;letter-spacing:2px;color:#98f8ed;margin:8px 0 4px;font-weight:700}
+#storyReport .line{display:flex;gap:10px;font-size:12px;line-height:1.45;margin:0 0 5px;color:#c6d6e2}
+#storyReport .line b{flex:0 0 92px;font-size:10px;letter-spacing:1px;padding-top:2px}
+#storyReport .gap{height:6px}
+#upgrades{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 4px}
+.upgrade{min-height:0;padding:10px 12px;gap:4px}
+.upgrade small{font-size:11px}
+.upgrade strong{font-size:13px}
+.upgrade span{font-size:11px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.upgrade b{font-size:13px}
+.shopBottom{position:static;bottom:auto;display:grid;grid-template-columns:1fr;gap:4px;padding:6px 0 0;background:transparent}
+.shopBottom small{display:block;margin:0;font-size:11px;letter-spacing:1px;color:#8aabbd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#saveState:empty{display:none}
+.shopActions{display:flex;gap:10px}
+.shopActions button{flex:1;min-height:48px;margin:0;padding:10px 12px;font-size:12px;letter-spacing:1px}
+.shopActions .primary{flex:1.4;min-width:0}
+html.compact-landscape #shop .shopTop h2{font-size:16px}
+html.compact-landscape #shop .hangar{gap:4px}
+html.compact-landscape #storyReport summary{min-height:40px}
+@media(orientation:portrait){#upgrades{grid-template-columns:minmax(0,1fr)}#shop .shopTop h2{font-size:20px}}

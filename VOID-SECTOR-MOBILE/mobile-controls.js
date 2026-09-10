@@ -262,6 +262,11 @@ if(rotateContinueBtn)rotateContinueBtn.onclick=()=>{mobileDismissedPortrait=true
 // смена полноэкранного режима не сдвигали её резко.
 function syncMobileViewport(){
  const v=getAppViewport();
+ // Нулевой/мусорный размер (страница открылась в фоне, WebView ещё не измерил
+ // окно) не публикуем: иначе --app-height:0px схлопнет #menu/#modal/ангар до
+ // следующего resize. Оставляем прежнее значение (или CSS-fallback 100vh) и
+ // дождёмся реального события — см. visibilitychange ниже.
+ if(!(v.width>0&&v.height>0))return;
  try{document.documentElement.style.setProperty('--app-height',v.height+'px')}catch{}
  document.documentElement.classList.toggle('compact-landscape',v.width>v.height&&v.height<=650);
  const nx=W?mx/W:.5,ny=H?my/H:.5;
@@ -277,6 +282,7 @@ function scheduleSyncMobileViewport(){
 addEventListener('resize',scheduleSyncMobileViewport);
 addEventListener('orientationchange',scheduleSyncMobileViewport);
 addEventListener('pageshow',scheduleSyncMobileViewport);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)scheduleSyncMobileViewport()});
 if(window.visualViewport)visualViewport.addEventListener('resize',scheduleSyncMobileViewport);
 syncMobileViewport();
 
