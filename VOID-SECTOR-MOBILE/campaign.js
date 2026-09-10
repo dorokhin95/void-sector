@@ -44,12 +44,22 @@ function enterStage(stage){
  else if(mission.mini){mission.mini.forEach((k,i)=>spawnMini(k,(i-(mission.mini.length-1)/2)*14));mission.quota=2}
  }else if(stage===4){firing=false;rocketHeld=false;shots=[];mines=[];notify('УРОВЕНЬ ЗАВЕРШЁН · '+mission.name)}
 }
+// Ждём конца post-level debrief (все реплики разбора, голос учтён), а не гадаем с таймером —
+// см. storyAPI.isPostLevelDebriefPending() в story.js. DEBRIEF_FAILSAFE_SEC — только защита от
+// бага (например, если story.js не подключился): самый длинный debrief в текущем пакете играет
+// ~10.6 с, здесь запас почти вдвое; в нормальной работе ангар открывается раньше этого предела.
+const DEBRIEF_FAILSAFE_SEC=20;
 function campaignDirector(dt){
  if(!mission)return;mission.time+=dt;mission.stageTime+=dt;
  if(mission.escaped>0){finish(false,mission.goal==='chase'?'Курьер ушёл. Перехват сорван.':'Транспорт противника прорвался. Конвой потерян.');return}
  if(mission.ally&&mission.ally.hp<=0){finish(false,mission.ally.station?'Союзная станция уничтожена.':'Союзный корабль уничтожен.');return}
  if(mission.stage===0){if(mission.stageTime>=4)enterStage(1);return}
- if(mission.stage===4){if(mission.stageTime<2.3)return;if(wave===19){finish(true);return}credits+=180+wave*22;health=Math.min(maxHealth(),health+30);shieldEnergy=maxShield();ammo=maxAmmo();mode='shop';keys={};$('shop').hidden=false;renderShop();saveCampaign(wave+1);return}
+ if(mission.stage===4){
+  if(mission.stageTime<2.3)return;// даёт финальным взрывам доиграть, как и раньше
+  const debriefBusy=mission.stageTime<2.3+DEBRIEF_FAILSAFE_SEC&&!!globalThis.storyAPI?.isPostLevelDebriefPending?.();
+  if(debriefBusy)return;
+  if(wave===19){finish(true);return}credits+=180+wave*22;health=Math.min(maxHealth(),health+30);shieldEnergy=maxShield();ammo=maxAmmo();mode='shop';keys={};$('shop').hidden=false;renderShop();saveCampaign(wave+1);return
+ }
  if(mission.ally&&!mission.ally.station){mission.ally.x=Math.sin(mission.time*.2)*4;mission.ally.y=Math.sin(mission.time*.3)*2}
  const special=mission.stage===2,timed=special&&['survive','escort','station'].includes(mission.goal),objects=special&&['objects','generators','blockade'].includes(mission.goal),intercept=special&&['convoy','chase'].includes(mission.goal);
  const continuous=timed||objects;

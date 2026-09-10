@@ -82,7 +82,9 @@ const storyScript=[
   debrief:[L('ship_ai','Анализ: не руда. Пепел — материал Архитекторов. Везли тоннами.')]},
  // 09 · Охотники за тенью — погоня за курьером, Баллиста, первый перехват из сектора
  {brief:[L('ship_ai','Элитная эскадрилья прикрывает курьера с данными. Бирюзовые двигатели — элита. Курьер не должен уйти.')],
-  contact:[],
+  // Первое появление классов "Копьё" и "Жнец" в кампании (эскорт курьера) — до этого их
+  // не было ни в одном пуле уровня (см. tools/voice/dialogue-audit.txt).
+  contact:[L('ship_ai','Копьё держит дистанцию — после паузы три снаряда веером, уходи с линии огня. Жнец быстрый, сближается рывками.')],
   change:[L('ship_ai','Курьер. Держись на его курсе — рывок при совпадении курса ускоряет сближение. Шестьдесят секунд.')],
   climax:[L('ship_ai','Перехват на нашем канале. Источник внутри сектора. Он знает наш позывной.')],
   debrief:[L('ship_ai','Данные курьера зашифрованы ключом «Персея». В моих архивах есть ключ. Расшифровка начата.')]},
@@ -178,11 +180,26 @@ const storyLoseLines=[L('ship_ai','Капитан не отвечает. Кор�
 // ---------------------------------------------------------------------------
 const storyPools={
  eliteKill:[],
- miniKill:[L('ship_ai','Командир сбит. Строй ломается.')],
- lowHull:[L('ship_ai','Корпус в красной зоне. Уйди с линии огня, дай щиту подняться.')],
- shieldDown:[L('ship_ai','Щит упал. AEGIS перезаряжается — уклоняйся.','Щит упал. +Иджис перезаряжается — уклоняйся.')],
+ // Каждый системный пул ниже — минимум 2 варианта: одно и то же предупреждение может
+ // сработать много раз за миссию (порог/гистерезис — events.js), и один и тот же текст
+ // подряд звучит как баг, а не как система (см. п.7/22 ТЗ). storyPickFresh не даёт
+ // storyPick выбрать тот же вариант, что прозвучал прошлый раз (тот же пул, любой уровень).
+ miniKill:[L('ship_ai','Командир сбит. Строй ломается.'),L('ship_ai','Командир уничтожен. Оставшиеся теряют координацию.')],
+ lowHull:[L('ship_ai','Корпус в красной зоне. Уйди с линии огня, дай щиту подняться.'),L('ship_ai','Критическая прочность корпуса. Выйди из боя на пару секунд — щит наберёт заряд.')],
+ shieldDown:[L('ship_ai','Щит упал. AEGIS перезаряжается — уклоняйся.','Щит упал. +Иджис перезаряжается — уклоняйся.'),L('ship_ai','Щит на нуле. Держись на дистанции, пока AEGIS не поднимется.','Щит на нуле. Держись на дистанции, пока +Иджис не поднимется.')],
  emp:[L('ship_ai','Импульс. Всё в радиусе заглохло, барьеры сняты. Добивай.')],
- overheat:[L('ship_ai','Перегрев. Пулемёт отключён до остывания, ракеты работают.')],
+ overheat:[L('ship_ai','Перегрев. Пулемёт отключён до остывания, ракеты работают.'),L('ship_ai','Орудие перегрето. Работай ракетами, пока стволы остывают.')],
+ // Разовый (максимум раз за уровень, см. on('combatStart')) сигнал о новой волне
+ // противника, замеченной ПОСЛЕ того, как поле боя уже пустело — не о самом первом
+ // контакте уровня (его всегда объявляет сценарный contact) и не о каждом спавне
+ // (см. п.10/13 ТЗ). {n} в экранном тексте — реальное число целей на момент срабатывания,
+ // не выдумываем; voiceText — как у endlessWave ниже, фиксированная фраза без числа
+ // (озвучивать заранее не знаем какое число выпадет, поэтому голос — общий).
+ reinforcement:[
+  L('ship_ai','Подкрепление на подходе. Целей: {n}.','Подкрепление на подходе.'),
+  L('ship_ai','В сектор вошла свежая группа. Целей: {n}.','В сектор вошла свежая группа.'),
+  L('ship_ai','Новая группа противника на радаре. Целей: {n}.','Новая группа противника на радаре.')
+ ],
  multiLock:[],
  pickup:[],
  miniSpawn:{hammer:L('ship_ai','Таран. Бронированный нос — бей сбоку или ракетами.'),lancer:L('ship_ai','Баллиста. Три рельсотронных снаряда после заряда — уходи с линии.'),carrier:L('ship_ai','Улей. Выпускает Рой, пока жив. Бей носитель.'),inquisitor:L('ship_ai','Прелат. Барьеры на соседей и импульсные снаряды. Твой импульс снимает барьеры.')},
@@ -196,13 +213,29 @@ const storyPools={
 // ---------------------------------------------------------------------------
 // 4. Состояние и настройки
 // ---------------------------------------------------------------------------
-const storyState={level:0,shownKeys:new Set(),empUses:0,lastGeneric:-1e9,campaign:true,started:false};
+// debriefPending — истинно с начала levelComplete и до конца ПОСЛЕДНЕЙ реплики разбора
+// (см. storyAPI.isPostLevelDebriefPending, campaignDirector); lastScripted — момент
+// окончания последней сценарной реплики (для паузы перед situational chatter, п.21 ТЗ);
+// lastPick — последний выбранный индекс на пул, чтобы storyPickFresh не повторял его сразу.
+const storyState={level:0,shownKeys:new Set(),empUses:0,lastGeneric:-1e9,lastScripted:-1e9,debriefPending:false,lastPick:{},campaign:true,started:false};
 const storySettings={voice:false};
 try{const s=JSON.parse(localStorage.getItem('void-sector-story'));if(s&&typeof s.voice==='boolean')storySettings.voice=s.voice}catch{}
 function storySave(){try{localStorage.setItem('void-sector-story',JSON.stringify(storySettings))}catch{}}
 function storyOnce(key){if(storyState.shownKeys.has(key))return false;storyState.shownKeys.add(key);return true}
 const storyNow=()=>performance.now()/1000;
 const storyPick=arr=>arr[Math.floor(Math.random()*arr.length)];
+// Как storyPick, но не выбирает дважды подряд один и тот же вариант того же пула (п.19 ТЗ:
+// анти-повтор без NLP/семантических ID — достаточно помнить последний индекс на пул).
+// Работает по имени пула в storyPools, а не по самому массиву — так lastPick переживает
+// смену уровня естественно (пул общий на всю кампанию, счётчик не сбрасывается в levelBegin).
+function storyPickFresh(poolName){
+ const arr=storyPools[poolName];if(!arr||!arr.length)return null;
+ if(arr.length===1)return arr[0];
+ const last=storyState.lastPick[poolName];let idx;
+ do{idx=Math.floor(Math.random()*arr.length)}while(idx===last);
+ storyState.lastPick[poolName]=idx;
+ return arr[idx];
+}
 
 // ---------------------------------------------------------------------------
 // 5. Панель «ЭФИР»: DOM, стили, портреты
@@ -259,20 +292,31 @@ function storyBuildPanel(){
 const storyQueue=[];let storyCurrent=null,storyElapsed=0,storyVisible=false,storyHideTimer=0,storyLastTick=0;
 const storyDuration=text=>Math.max(2.4,1.1+text.length*.045);
 function storyHasScripted(){return (storyCurrent&&storyCurrent.scripted)||storyQueue.some(l=>l.scripted)}
+// Ситуативный chatter не чаще раза в ~45 с и не раньше STORY_HUSH_SEC после конца
+// последней сценарной реплики (п.21 ТЗ: 8-12 с тишины после важного события — берём середину).
+const STORY_HUSH_SEC=10;
 // Поставить реплику в очередь. scripted=false — ситуативная (может быть отброшена).
 function storySay(line,scripted=true){
  if(!line||!line.text)return false;
  if(!scripted){
   if(storyHasScripted())return false;
-  if(storyNow()-storyState.lastGeneric<45)return false; // ситуативный chatter — не чаще раза в ~45 с
+  if(storyNow()-storyState.lastGeneric<45)return false;
+  if(storyNow()-storyState.lastScripted<STORY_HUSH_SEC)return false;
   if(storyCurrent)return false;
   storyState.lastGeneric=storyNow();
- }else if(storyCurrent&&!storyCurrent.scripted){storyElapsed=storyCurrent.duration}// сценарная реплика обрывает ситуативную
+ }else{
+  if(storyCurrent&&!storyCurrent.scripted)storyElapsed=storyCurrent.duration;// сценарная обрывает играющую ситуативную
+  if(storyQueue.length&&!storyQueue[0].scripted)storyQueue.length=0;// и отменяет ещё не начатую ситуативную в очереди (п.8 ТЗ)
+ }
  storyQueue.push({who:line.who,text:line.text,voiceText:line.voiceText||null,scripted,duration:storyLineDuration(line)});
  return true;
 }
 function storySayAll(lines,scripted=true){if(Array.isArray(lines))for(const l of lines)storySay(l,scripted);else if(lines)storySay(lines,scripted)}
-function storyClear(){storyQueue.length=0;storyCurrent=null;storyHidePanel(true)}
+// debriefPending сбрасывается и здесь — на случай, если очередь очистили извне
+// (выход в меню, ручной restart) раньше, чем разбор миссии доиграл сам; иначе ангар
+// мог бы никогда не открыться (см. campaignDirector). Основной путь очистки — normal
+// drain в storyTick ниже, это только защита от бага/внешнего вмешательства.
+function storyClear(){storyQueue.length=0;storyCurrent=null;storyState.debriefPending=false;storyHidePanel(true)}
 function storyShowPanel(){if(!storyPanel)storyBuildPanel();if(!storyPanel)return;clearTimeout(storyHideTimer);storyPanel.hidden=false;requestAnimationFrame(()=>storyPanel.classList.add('on'));storyVisible=true}
 function storyHidePanel(immediate=false){
  if(!storyPanel||!storyVisible)return;storyVisible=false;storyPanel.classList.remove('on');
@@ -335,7 +379,16 @@ function storyTick(now){
  if(!storyCurrent){if(!storyQueue.length){if(storyVisible)storyHidePanel();return}storyStartLine(storyQueue.shift())}
  storyElapsed+=dt;const line=storyCurrent,shown=Math.min(line.text.length,Math.floor(storyElapsed*45));
  if(storyEls){storyEls.text.innerHTML=storyEscape(line.text.slice(0,shown))+(shown<line.text.length?'<i></i>':'');storyEls.bar.style.width=Math.max(0,100-storyElapsed/line.duration*100)+'%'}
- if(storyElapsed>=line.duration){storyCurrent=null;if(!storyQueue.length){storyElapsed=0}}
+ if(storyElapsed>=line.duration){
+  storyCurrent=null;
+  if(line.scripted)storyState.lastScripted=storyNow();// начинает "тишину" перед следующим ситуативным chatter
+  if(!storyQueue.length){
+   storyElapsed=0;
+   // Реплика доиграла ПОЛНОСТЬЮ (голос учтён в line.duration, см. storyLineDuration) и очередь
+   // пуста — если это была последняя реплика post-level debrief, ангару больше нечего ждать.
+   if(line.scripted&&storyState.debriefPending)storyState.debriefPending=false;
+  }
+ }
 }
 function storyEscape(s){return s.replace(/[&<>]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]))}
 
@@ -357,7 +410,11 @@ function storyRenderTranscript(level){
  if(next?.brief?.length&&nextDef){html+=(html?'<div class="gap"></div>':'')+'<h3>БРИФИНГ · '+storyEscape(nextDef.name.toUpperCase())+'</h3>'+next.brief.map(storyTranscriptLine).join('')}
  if(!html)return;
  if(report){
-  const summary=nextDef?'СВОДКА МИССИИ · ДАЛЕЕ: '+storyEscape(nextDef.name.toUpperCase()):'СВОДКА МИССИИ';
+  // В компактном альбомном ангаре (html.compact-landscape, style.css) кнопка-раскрывашка
+  // короткая ("СВОДКА") — п.32 ТЗ; на остальных раскладках (десктоп, портрет) остаётся
+  // полная подпись с названием следующей миссии, там она умещается свободно.
+  const compact=document.documentElement.classList.contains('compact-landscape');
+  const summary=compact?'СВОДКА':(nextDef?'СВОДКА МИССИИ · ДАЛЕЕ: '+storyEscape(nextDef.name.toUpperCase()):'СВОДКА МИССИИ');
   report.innerHTML='<summary>'+summary+'</summary><div class="reportBody">'+html+'</div>';report.hidden=false;return;
  }
  const box=document.createElement('div');box.id='storyTranscript';box.innerHTML=html;
@@ -397,7 +454,7 @@ function storyLevel(){return storyScript[storyState.level]||null}
 function storyBind(){
  if(typeof globalThis.on!=='function'){console.warn('story.js: шина событий (events.js) не найдена');return}
  on('start',({saved,gameMode:gm})=>{
-  storyState.shownKeys.clear();storyState.level=0;storyState.empUses=0;storyState.lastGeneric=-1e9;storyState.campaign=gm==='campaign';storyState.started=true;storyClear();
+  storyState.shownKeys.clear();storyState.level=0;storyState.empUses=0;storyState.lastGeneric=-1e9;storyState.lastScripted=-1e9;storyState.lastPick={};storyState.campaign=gm==='campaign';storyState.started=true;storyClear();
   if(gm==='endless')storyState.lastGeneric=-1e9;
  });
  on('levelBegin',({level,gameMode:gm})=>{
@@ -417,8 +474,13 @@ function storyBind(){
  });
  on('levelComplete',({level})=>{
   if(!storyState.campaign)return;const s=storyLevel();
-  // Во время 2,3 с финальных взрывов — только первая реплика разбора; остальное — в ангаре / эпилоге.
-  if(s?.debrief?.[0]&&level<19&&storyOnce('debrief'+level)){storyQueue.length=0;storySay(s.debrief[0])}
+  // Все реплики разбора миссии — целиком, ДО ангара (не только первая, как раньше: тот
+  // вариант обрывал голос фиксированной задержкой в campaignDirector). debriefPending
+  // держит ангар закрытым, пока не доиграет последняя строка; см. storyTick/storyClear
+  // и storyAPI.isPostLevelDebriefPending, которую опрашивает campaignDirector (campaign.js).
+  if(s?.debrief?.length&&level<19&&storyOnce('debrief'+level)){
+   storyQueue.length=0;storyState.debriefPending=true;storySayAll(s.debrief);
+  }
  });
  on('shopOpen',({level})=>{storyClear();storyRenderTranscript(level)});
  on('finish',({win})=>{storyClear();storyPatchFinish(win)});
@@ -430,17 +492,32 @@ function storyBind(){
  on('lowHull',()=>{
   const s=storyState.campaign?storyLevel():null;
   if(s?.lowHull&&storyOnce('lowHull'+storyState.level)){storySay(s.lowHull);return}
-  storySay(storyPick(storyPools.lowHull),false);
+  storySay(storyPickFresh('lowHull'),false);
  });
- on('shieldDown',()=>storySay(storyPick(storyPools.shieldDown),false));
+ on('shieldDown',()=>storySay(storyPickFresh('shieldDown'),false));
  on('emp',()=>{storyState.empUses++;if(storyState.empUses<=1)storySay(storyPools.emp[0],false)});
- on('overheat',()=>storySay(storyPick(storyPools.overheat),false));
+ on('overheat',()=>storySay(storyPickFresh('overheat'),false));
  on('missileLaunch',({count})=>{if(count>=2)storySay(storyPick(storyPools.multiLock),false)});
  on('pickup',()=>{if(Math.random()<.25)storySay(storyPick(storyPools.pickup),false)});
  on('enemyKilled',({elite,mini,decoy})=>{
   if(decoy)return;
-  if(mini)storySay(storyPick(storyPools.miniKill),false);
+  if(mini)storySay(storyPickFresh('miniKill'),false);
   else if(elite&&Math.random()<.5)storySay(storyPick(storyPools.eliteKill),false);
+ });
+ // Новая волна замечена ПОСЛЕ того, как поле боя уже пустело (см. eventState.combat в
+ // events.js) — не первый контакт уровня (его берёт на себя сценарный contact; за счёт
+ // storyHasScripted() внутри storySay эта реплика и не может обогнать/задвоить его,
+ // см. п.10 ТЗ) и максимум раз за уровень (не на каждый спавн, п.13 ТЗ). shownKeys
+ // помечается только при реально ушедшей реплике — иначе неудачная попытка (её отбросили
+ // из-за паузы/приоритета) сожгла бы единственный шанс на этот уровень без результата.
+ on('combatStart',()=>{
+  if(!storyState.campaign||storyState.debriefPending)return;
+  if(storyState.shownKeys.has('reinforce'+storyState.level))return;
+  if(storyNow()-storyState.lastScripted<6)return;
+  const l=storyPickFresh('reinforcement');if(!l)return;
+  const n=String((typeof enemies!=='undefined'?enemies.length:0)||1);
+  const said=storySay({who:l.who,text:l.text.replace('{n}',n),voiceText:l.voiceText},false);
+  if(said)storyState.shownKeys.add('reinforce'+storyState.level);
  });
  on('miniSpawn',({kind})=>{
   // В кампании командиров объявляет сценарная кульминация; общий пул — для остальных случаев.
@@ -474,6 +551,9 @@ const storyAPI={
  characters:storyCharacters,script:storyScript,pools:storyPools,state:storyState,settings:storySettings,
  setVoice(v){storySettings.voice=!!v;storySave();if(!v)try{globalThis.audioAPI?.stopVoice?.()}catch{}return storySettings.voice},
  getVoice(){return storySettings.voice},
+ // Опрашивается campaignDirector (campaign.js) перед открытием ангара: пока true — миссия
+ // ещё не считается завершённой, ангар ждёт. См. п.3 ТЗ (не фиксированный таймер).
+ isPostLevelDebriefPending(){return storyState.debriefPending},
  say(who,text,scripted=true){return storySay({who,text},scripted)},
  skip(){if(storyCurrent)storyElapsed=storyCurrent.duration},
  clear:storyClear,
