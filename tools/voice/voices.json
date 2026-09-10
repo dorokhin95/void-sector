@@ -1,57 +1,90 @@
 {
- "model": {
-  "id": "v5_cis_base",
-  "language": "ru",
-  "package_url": "https://models.silero.ai/models/tts/ru/v5_cis_base.pt",
-  "sample_rates_supported": [8000, 24000, 48000],
-  "master_sample_rate": 24000,
-  "requires_manual_stress": true,
-  "stress_marker": "+",
-  "note": "Verified against snakers4/silero-models models.yml + examples_tts_cis.ipynb on 2026-09-09. Loaded via `from silero import silero_tts; model,_=silero_tts(language='ru',speaker='v5_cis_base')`. model.speakers lists every available voice id."
+ "_comment": "Production-конфиг озвучки VOID SECTOR. Ровно два voice speaker ID (captain, ship_ai). provider — единственный production-провайдер; automatic fallback на другой провайдер/похожий голос ЗАПРЕЩЁН: если выбранный голос недоступен, build падает с ошибкой. Поля voice/role у captain и ship_ai ЗАПОЛНЯЮТСЯ ТОЛЬКО после утверждения пользователем (GATE 1 → GATE 2, см. tools/voice/casting.py и README); до этого build_voicepack.py отказывается генерировать production pack.",
+ "provider": "yandex",
+ "providers": {
+  "yandex": {
+   "api": "SpeechKit v3 REST — https://tts.api.cloud.yandex.net/tts/v3/utteranceSynthesis",
+   "language": "ru-RU",
+   "auth": "env YANDEX_API_KEY (Api-Key) ИЛИ env YANDEX_IAM_TOKEN (Bearer) + YANDEX_FOLDER_ID; ключи не хранятся в репозитории и не печатаются в лог",
+   "stressMarker": "+",
+   "autoStress": false,
+   "masterSampleRate": 48000,
+   "docs": "https://yandex.cloud/ru/docs/speechkit/tts/"
+  },
+  "silero": {
+   "_comment": "Только dev/offline preview по явному --provider silero. Не используется в production и не является fallback.",
+   "modelId": "v5_cis_base",
+   "language": "ru",
+   "stressMarker": "+",
+   "autoStress": true,
+   "masterSampleRate": 24000,
+   "devSpeakers": {"captain": "ru_dmitriy", "ship_ai": "ru_ekaterina"}
+  }
+ },
+ "casting": {
+  "captain": [
+   {"voice": "kirill", "role": "strict"},
+   {"voice": "alexander", "role": "neutral"},
+   {"voice": "anton", "role": "neutral"}
+  ],
+  "ship_ai": [
+   {"voice": "julia", "role": "strict"},
+   {"voice": "marina", "role": "neutral"},
+   {"voice": "alena", "role": "neutral"}
+  ],
+  "roundA": [
+   "Капитан, курс на Эреб проложен. До точки перехода двадцать секунд.",
+   "Получено сообщение командования. Группе разрешено продолжить операцию.",
+   "Система +иджис восстановлена. +Эмп-модуль готов к повторному применению.",
+   "Архонт меняет конфигурацию. Зафиксирован запуск внешних генераторов."
+  ],
+  "roundB": [
+   "Орбита Эр+еба. Сигнал «Перс+ея» шёл отсюда, двадцать четыре года назад.",
+   "Ударная группа «Немез+ида». Станция «Маяк», двести человек на борту.",
+   "Арх+онт Бездны. Четыре генератора на кольце — сначала они, корпус защищён.",
+   "Ц+ербер выходит из дока. Левиаф+ан держит переход.",
+   "«В+ектор» на позиции. Уровень восемь, перехват снабжения.",
+   "Щит упал. +Иджис перезаряжается — уклоняйся.",
+   "Импульс. Всё в радиусе заглохло, барьеры сняты. Добивай.",
+   "Транспорт «Ковчег-три», двести человек. Его прочность — под задачей.",
+   "Продержись двадцать пять секунд. Десять секунд до выхода.",
+   "Маркировка «Персей-один», «Персей-четыре». Вся экспедиция.",
+   "Слишком согласованно для пиратов. Это выученный экипаж.",
+   "Они бы не вернулись людьми."
+  ]
  },
  "characters": {
-  "spectre": {"requested": "ru_bel_dmitriy", "resolved": "ru_dmitriy", "fallback": false},
-  "voronova": {"requested": "ru_bel_larisa", "resolved": "ru_ekaterina", "fallback": true,
-   "reason": "model.speakers has no 'ru_larisa' — 'bel_larisa' exists only as the native-Belarusian voice, with no Russian-language ('ru_') variant shipped in this model release. No other ru_ speaker shares Larisa's Belarusian (East Slavic) origin, so the nearest still-unused ru_ voice was picked by hand for a mature/authoritative female timbre distinct from Leya's ru_ramilia."},
-  "leya": {"requested": "ru_bak_ramilia", "resolved": "ru_ramilia", "fallback": false},
-  "markov": {"requested": "ru_bel_anatoliy", "resolved": "ru_roman", "fallback": true,
-   "reason": "model.speakers has no 'ru_anatoliy' (same gap as Larisa above — 'bel_anatoliy' has no 'ru_' variant). 'ru_roman' was chosen because its native origin is Ukrainian (bel/ukr are both East Slavic, the closest available linguistic family to Belarusian), keeping 'ru_igor' free as a spare male voice."},
-  "unknown": {"requested": "ru_tat_marat", "resolved": "ru_marat", "fallback": false}
+  "captain": {"provider": "yandex", "voice": null, "role": null, "speed": 1.0, "dsp": "captain"},
+  "ship_ai": {"provider": "yandex", "voice": null, "role": null, "speed": 1.0, "dsp": "ship_ai"}
  },
- "normalization": {
-  "guillemets": "stripped (« » removed, enclosed text kept as-is)",
-  "ellipsis": "'...' and '…' -> ', ' (comma pause)",
-  "dash": "'--' / '—' / '–' -> ', ' (comma pause)",
-  "pronunciationDict": "tools/voice/pronunciation.json, longest key first, \\b-bounded, case-insensitive",
-  "unsafeChars": "anything outside [0-9A-Za-zА-Яа-яЁё' +.,!?:;-] stripped after dictionary substitution",
-  "trailingPunctuation": "a '.' is appended if the normalized text doesn't already end in . ! or ?"
- },
- "stress": {
-  "package": "silero-stress",
-  "pypi": "silero-stress==1.4",
-  "call": "load_accentor(lang='ru') -> accentor(text) -> text with '+' before stressed vowels",
-  "faultTolerant": "try/except around accentor(); on failure the unstressed normalized text is used and the error is logged in voice-build-report.json — never blocks the rest of the build",
-  "verifiedPreStressed": "words already containing '+' (from pronunciation.json) are left untouched by accentor() and do not get double-marked (empirically verified 2026-09-09)"
- },
- "radio": {
-  "highpassHz": 180,
-  "lowpassHz": 4200,
-  "presence": {"hz": 1800, "gainDb": 2},
-  "compressionRatio": 3,
-  "targetLUFS": -16,
-  "truePeakDb": -1,
-  "note": "applied to ALL 391 lines via ffmpeg (highpass, lowpass, a peaking EQ bump at 1800Hz, acompressor, loudnorm). radioOpen/radioClose stay separate existing SFX (audio.js), not baked into these files."
- },
- "unknownRadio": {
-  "who": "unknown",
-  "extraLowpassHz": 3500,
-  "extraCompressionRatio": 4,
-  "saturationDriveDb": 2,
-  "note": "applied ON TOP of the standard radio chain above, only for the 'unknown'/Sokolov character — deliberately light (no pitch shift / vocoder / robot effect), speech stays fully intelligible."
+ "dsp": {
+  "_comment": "Лёгкая обработка вместо старой телефонной трубки (LP 4.2 кГц). Сначала чистая речь, затем едва заметная принадлежность к игре.",
+  "captain": {"highpassHz": 150, "lowpassHz": 6800, "compressor": {"threshold": -20, "ratio": 2.2, "attack": 8, "release": 80}, "presence": {"hz": 2200, "gainDb": 1}, "loudnorm": {"I": -16, "TP": -1.5, "LRA": 9}},
+  "ship_ai": {"highpassHz": 120, "lowpassHz": 9000, "compressor": {"threshold": -22, "ratio": 1.8, "attack": 10, "release": 90}, "presence": {"hz": 3000, "gainDb": 0.8}, "loudnorm": {"I": -16, "TP": -1.5, "LRA": 9}, "coloration": {"comment": "едва заметный terminal/radio оттенок: очень узкий подъём 5.5 кГц", "hz": 5500, "gainDb": 0.6}}
  },
  "output": {
-  "masterFormat": "WAV mono 24000 Hz (temporary, not committed)",
-  "productionFormat": "MP3 mono 24 kHz 48 kbps (falls back to 48 kHz mono 48 kbps if the encoder rejects 24 kHz)",
-  "sizeTargetMB": 10
+  "format": "mp3",
+  "channels": 1,
+  "sampleRate": 48000,
+  "bitrate": "96k",
+  "targets": ["VOID-SECTOR", "VOID-SECTOR-MOBILE"],
+  "assetDir": "assets/voice/ru",
+  "manifestFile": "voice-manifest.js",
+  "manifestVersion": 2
+ },
+ "validation": {
+  "allowedSpeakers": ["captain", "ship_ai"],
+  "maxEntries": 140,
+  "sourceStory": "VOID-SECTOR-MOBILE/story.js",
+  "requireIdenticalStory": "VOID-SECTOR/story.js"
+ },
+ "normalization": {
+  "guillemets": "stripped (« » removed, enclosed text kept)",
+  "ellipsis": "'...' and '…' -> ', '",
+  "dash": "'--' / '—' / '–' -> ', '",
+  "uiTokens": "'//', '→', '|' -> ', ' (служебные обозначения UI не читаются)",
+  "pronunciationDict": "tools/voice/pronunciation.json — обязательный production-словарь; ключи сопоставляются по границе слова, сначала более длинные",
+  "unsafeChars": "anything outside [0-9A-Za-zА-Яа-яЁё' +.,!?:;-] stripped after dictionary substitution",
+  "trailingPunctuation": "'.' appended if text doesn't end in . ! or ?"
  }
 }

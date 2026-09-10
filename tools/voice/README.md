@@ -1,130 +1,76 @@
 # VOID SECTOR — голосовой пайплайн (tools/voice)
 
-Полностью локальная, бесплатная генерация русской озвучки всех диалоговых
-реплик игры через [Silero TTS](https://github.com/snakers4/silero-models)
-(модель `v5_cis_base`). Никаких платных API, никакого браузерного
-`speechSynthesis` в продакшене, никаких TTS-моделей на устройстве игрока —
-на выходе обычные `.mp3`-файлы, зашитые в игру как статические ассеты.
+Озвучка диалогов кампании: **два голоса** — `captain` (игрок, командир «Вектора»)
+и `ship_ai` (женский бортовой ИИ). Один и тот же prerecorded voice pack для PC и
+Mobile; в игре нет ни браузерного `speechSynthesis`, ни TTS-моделей на устройстве —
+только статические `.mp3` + `voice-manifest.js`.
 
-## Один запуск — весь пайплайн
+## Порядок работы (с обязательными gate'ами)
 
-```bash
-pip install -r tools/voice/requirements.txt
-python tools/voice/build_voicepack.py
+```text
+1. сценарий      story.js → node tools/voice/extract_story.mjs --strict   (speakers = {captain, ship_ai}, ≤140 реплик)
+2. кастинг A     python tools/voice/casting.py --round A                    → previews/casting/roundA/index.html   GATE 1
+3. кастинг B     python tools/voice/casting.py --round B --captain v:r --captain v:r --ai v:r --ai v:r
+                                                                            → previews/casting/roundB/index.html   GATE 2
+4. закрепить     voices.json → characters.captain / characters.ship_ai: voice, role (speed, dsp)
+5. сборка        python tools/voice/build_voicepack.py                      → assets/voice/ru/ в ОБЕ версии + manifest
+6. прослушать    previews/gate3/index.html (первые 5, 10 случайных, все со словарём)      GATE 3
 ```
 
-Системные зависимости (не из pip): **Node.js** (для `extract_story.mjs`) и
-**ffmpeg/ffprobe** на `PATH` (радио-эффект, кодирование в mp3, чтение
-длительности). Никаких npm-пакетов не устанавливается — `extract_story.mjs`
-не имеет зависимостей.
+Gate'ы — человеческие: скрипты **не выбирают голос сами** и не заменяют
+отсутствующий голос «похожим». Если в `voices.json` голос не заполнен или
+провайдер вернул ошибку — build падает с сообщением.
 
-Скрипт сам, без ручных промежуточных шагов:
-1. **extract** — `extract_story.mjs` статически парсит `VOID-SECTOR-MOBILE/story.js`
-   (не выполняет его) и находит каждый вызов `L(who,text[,voiceText])` —
-   391 диалоговую реплику (390 уникальных audio-ассетов — одна реплика Спектра
-   встречается дословно дважды).
-2. **normalize** — `normalizeVoiceText()` (generate_voice.py): убирает «ёлочки»,
-   превращает `...`/`—` в паузу-запятую, раскрывает `pronunciation.json`
-   (аббревиатуры вроде `AEGIS`/`EMP`, придуманные имена вроде `Эреб`/`Архонт`
-   с проставленным ударением), чистит небезопасные символы. Видимый игровой
-   текст (`line.text`) при этом никогда не меняется — нормализуется только
-   копия, уходящая в TTS.
-3. **stress** — [`silero-stress`](https://pypi.org/project/silero-stress/)
-   (`load_accentor(lang='ru')`) расставляет `+` перед ударной гласной — это
-   ROOT-формат, который ожидает модель `v5_cis_base` (в отличие от
-   `v5_cis_base_nostress`). Обёрнуто в `try/except` — сбой ударения никогда
-   не останавливает генерацию остальных реплик, только пишется в отчёт.
-4. **generate** — Silero TTS, модель и accentor загружаются **один раз** за
-   весь запуск. Resumable: уже существующий валидный WAV пропускается, так
-   что повторный запуск на середине не пересоздаёт готовые файлы. При ошибке:
-   retry (снова с ударением), затем retry без ударения вовсе, затем запись
-   помечается `failed` — но остальные 389 реплик всё равно генерируются.
-5. **radio + encode** — один проход `ffmpeg`: highpass 180 Hz, lowpass 4200 Hz,
-   presence-подъём +2 dB на 1800 Hz, `acompressor` ratio≈3:1, `loudnorm` до
-   −16 LUFS / true peak −1 dB → сразу в MP3 mono 24 kHz 48 kbps. Для
-   «Неизвестного» (Соколов) — дополнительно ещё один lowpass 3500 Hz,
-   более сильная компрессия и очень лёгкая `asoftclip`-сатурация (без
-   pitch-shift/vocoder/robot-эффектов — голос остаётся разборчивым).
-6. **manifest** — `VOID-SECTOR-MOBILE/voice-manifest.js`: `{voiceKey:{src,duration,who}}`,
-   `duration` читается через `ffprobe` из готового mp3, **не** оценивается по
-   длине текста.
-7. **validate** — для каждой из 391 реплики проверяется: есть voiceKey → есть
-   запись в манифесте → файл существует → размер > 0 → длительность > 0.
-   Итог печатается как `VOICE PACK VALID`/`INVALID`, exit code 1 при `missing>0`.
-8. **report** — `tools/voice/voice-build-report.json`: entries/covered/
-   uniqueAssets/failed/warnings/totalDuration/totalBytes/reviewRecommended/
-   speakerFallbacks.
+## Провайдер
 
-## Голоса (5 постоянных, модель `v5_cis_base`)
+Production — **Yandex SpeechKit v3** (`ru-RU`, REST `utteranceSynthesis`,
+LINEAR16 PCM 48 kHz). Credentials только из окружения, в репозитории и логах их нет:
 
-| Персонаж | Запрошенный speaker | Реально используется | Почему |
-|---|---|---|---|
-| Спектр | `ru_bel_dmitriy` | `ru_dmitriy` | у модели нет варианта с полным префиксом языка — базовое имя тот же голос |
-| Майор Воронова | `ru_bel_larisa` | `ru_ekaterina` (**замена**) | `ru_larisa` в модели вообще отсутствует (только нативный `bel_larisa` без русского варианта) |
-| Лея | `ru_bak_ramilia` | `ru_ramilia` | — |
-| Доктор Марков | `ru_bel_anatoliy` | `ru_roman` (**замена**) | `ru_anatoliy` отсутствует; `ru_roman` — украинского происхождения (тоже восточнославянская группа, ближайшая к белорусской) |
-| Неизвестный / Соколов | `ru_tat_marat` | `ru_marat` | — |
+```bash
+export YANDEX_API_KEY=...          # Api-Key сервисного аккаунта
+# либо
+export YANDEX_IAM_TOKEN=...  YANDEX_FOLDER_ID=...
+```
 
-Полный список голосов модели: `model.speakers` (см. `voices.json.model.note`);
-несовпадения обнаружены и задокументированы эмпирически 2026-09-09 —
-`build_voicepack.py` ничего не подставляет "на глаз" в рантайме, все 5
-голосов зафиксированы в `voices.json.characters` заранее.
+`silero` (локальная модель `v5_cis_base`) оставлен **только** как dev/offline
+превью по явному `--provider silero --out-root <dir>`; в production-каталоги он
+писать не может и fallback'ом не является.
 
-## Стабильные ключи (voiceKey)
+## Файлы
 
-`voiceKey = fnv1a8( who + '\0' + (voiceText || text) )` (разделитель — NUL,
-не пробел) — от персонажа и
-**содержания**, не от позиции в файле. Реализован идентично в двух местах
-(должны совпадать байт-в-байт):
-- `tools/voice/extract_story.mjs` (`normalizeForKey`/`fnv1a`) — при генерации;
-- `VOID-SECTOR-MOBILE/story.js` (`storyVoiceKey`/`fnv1a`) — в рантайме игры,
-  чтобы найти нужный mp3 в `VOICE_MANIFEST`.
+| файл | назначение |
+|---|---|
+| `extract_story.mjs` | статически парсит `VOID-SECTOR-MOBILE/story.js` (не исполняет), находит каждый `L(who,text[,voiceText])`, считает стабильный `voiceKey = fnv1a8(who + '\0' + (voiceText\|\|text))`; `--strict` — acceptance сценария |
+| `generate_voice.py` | нормализация текста (`normalize_voice_text`), словарь произношения, провайдеры, resumable-генерация master WAV |
+| `build_voicepack.py` | единый entrypoint: extract → generate → DSP/encode → sync в оба target'а → manifest → prune orphaned → validate → report + GATE 3 sample |
+| `casting.py` | раунды A/B кастинга, HTML для A/B-сравнения |
+| `voices.json` | provider, кандидаты кастинга, **утверждённые голоса**, DSP-профили по роли, формат вывода, правила валидации |
+| `pronunciation.json` | обязательный production-словарь: ударения для вымышленных имён (`+` перед ударной гласной), аббревиатуры (`AEGIS`, `EMP`), числа словами |
+| `story-lines.json` | снимок извлечённых реплик (регенерируется) |
+| `voice-build-report.json` | результат последней сборки |
 
-Если правишь текст существующей реплики в `story.js` — ключ поменяется
-автоматически (это ожидаемо: другой текст = другой звук), и надо
-перезапустить `build_voicepack.py`, чтобы досоздать недостающий asset
-(resumable — пересоздаст только изменившиеся/новые ключи).
+## voiceText и словарь
 
-## Динамические реплики ({n})
+`L(who, displayText, voiceText)` — третий аргумент только для TTS: экранный
+`«Ковчег-3»` → голос `«Ковчег-три»`, `АРХИВ «ПЕРСЕЯ» // …` → `Запись из архива…`.
+`normalize_voice_text` дополнительно убирает `«»`, превращает `…`/`—`/`//`/`→` в
+паузу-запятую, применяет словарь (ключи по границе слова, сначала длинные) и
+чистит небезопасные символы. Ключ `voiceKey` считается от **сырого** текста, поэтому
+правка словаря не меняет имена файлов — чтобы пересоздать затронутые реплики,
+удали их mp3 (build их досоздаст) или запусти сборку с чистым `_work/`.
 
-`storyPools.endlessWave` — единственное место с `{n}` (номер волны).
-Вместо генерации бесконечного числа чисел эти 5 строк получили третий
-аргумент `L(who, text, voiceText)` со статичной фразой ("Волна {n}..." →
-"Новая волна..."). extract_story.mjs использует `voiceText` для TTS и для
-voiceKey, если он задан; `text` (с `{n}`) остаётся на экране как есть.
+## DSP
 
-## pronunciation.json
+Профили в `voices.json.dsp` — лёгкие (captain: HP 150 / LP 6.8 kHz, мягкая
+компрессия; ship_ai: HP 120 / LP 9 kHz, едва заметная «терминальная» окраска
+5.5 kHz). Никакого vocoder/pitch-shift/телефонной трубки. Выход: MP3 mono 48 kHz
+96 kbps.
 
-Словарь подстрок для TTS (не для отображения): аббревиатуры (`AEGIS`,
-`EMP`), однобуквенные клавиши (`R`/`E`/`Shift` — в тексте это ссылки на
-управление ПК, оставленные как есть, потому что видимый текст не меняем),
-числовой диапазон (`2260-х`) и придуманные имена/термины с проставленным
-`+`-ударением (`Эреб`, `Персей`, `Немезида`, `Архонт`, `Цербер`,
-`Левиафан`, `Спектр`, `Вектор`, `Бастион`, `Корсар`, `Таран`) — это
-реальные словарные слова, но `silero-stress` не всегда угадывает ударение
-у собственных имён sci-fi сеттинга, так что они зафиксированы вручную.
-Совпадение ищется по границе слова (`\b`), регистронезависимо, сначала
-более длинные ключи (`2260-х` раньше отдельного `2260`).
+## Manifest и рантайм
 
-`UNKNOWN_TTS_TOKENS` (найденные `extract_story.mjs`, но не покрытые
-словарём) не останавливают генерацию — используется обычная нормализация,
-токен попадает в `voice-build-report.json.reviewRecommended` для ручной
-проверки постфактум (см. п. 29 задания — "не блокирует релиз").
-
-## Переиспользование через месяц (Reproducibility)
-
-`voices.json` фиксирует всё, что нужно, чтобы досоздать реплику тем же
-голосом позже: model id, полный маппинг персонаж→speaker (с обоснованием
-замен), sample rate, правила нормализации, настройки радио-эффекта.
-`requirements.txt` пинит точные версии пакетов, установленные при
-первом запуске (torch 2.13.0, silero 0.5.5, silero-stress 1.4, omegaconf 2.3.1).
-
-## Не делали (см. задание, п.32)
-
-Не генерировали 15 preview / не ждали ручного approve; не использовали
-браузерный `speechSynthesis`, ElevenLabs/OpenAI/Google/любой платный API;
-не грузили TTS-модель пользователю; не храним production WAV (только
-временный `tools/voice/_work/master_wav/`, не коммитится); не прекэшируем
-весь voice pack в Service Worker install (только `voice-manifest.js`,
-mp3 — Cache First по требованию, см. `VOID-SECTOR-MOBILE/service-worker.js`);
-не блокируем геймплей ожиданием скачивания голоса.
+`voice-manifest.js` (`{version:2, lines:{voiceKey:{src,duration,who}}}`) пишется в
+корень **и** `VOID-SECTOR/`, **и** `VOID-SECTOR-MOBILE/` — каждая версия остаётся
+самостоятельным static root без `../`. `story.js` (общий файл для обеих версий)
+ищет реплику по `storyVoiceKey()`, играет через `audioAPI.playVoice()`, а длительность
+показа берёт как `max(оценка по тексту, duration + 0.25 с)` — голос не обрезается
+закрытием панели. Мобильный service worker кэширует mp3 по требованию (Cache First).

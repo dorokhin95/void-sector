@@ -2,29 +2,35 @@
 # -*- coding: utf-8 -*-
 """VOID SECTOR — voice pipeline: generate_voice.py
 
-Генерирует ОДИН master WAV (mono, 24000 Hz) на каждую УНИКАЛЬНУЮ реплику
-из tools/voice/story-lines.json (см. extract_story.mjs) через Silero TTS
-(v5_cis_base) с предварительной нормализацией текста и ударением
-(silero-stress). Модель и accentor загружаются РОВНО ОДИН раз за запуск.
+Синтез master-WAV (mono) на каждую уникальную реплику из story-lines.json
+(см. extract_story.mjs) через провайдера TTS с предварительной нормализацией
+текста и словарём произношения (pronunciation.json).
 
-Resumable: уже существующий валидный WAV для данного voiceKey пропускается,
-так что повторный запуск на середине build не пересоздаёт готовые файлы.
+Провайдеры (см. voices.json "providers"):
+  yandex — production. Yandex SpeechKit v3 REST, голос/роль берутся из
+           voices.json "characters" и ДОЛЖНЫ быть заполнены (после GATE 2).
+           Никакого автоматического fallback: нет ключа, нет голоса,
+           ошибка API — генерация этой реплики падает, build падает.
+  silero — только dev/offline preview по явному --provider silero.
+           Не используется в production и не является fallback.
 
-Использование как модуль (см. build_voicepack.py) или отдельно:
-    python tools/voice/generate_voice.py \
-        --lines tools/voice/story-lines.json \
-        --out tools/voice/_work/master_wav \
-        --report tools/voice/voice-build-report.json
+Credentials только из окружения: YANDEX_API_KEY (Api-Key) либо
+YANDEX_IAM_TOKEN (Bearer) + YANDEX_FOLDER_ID. В лог не выводятся.
+
+Resumable: уже существующий валидный WAV для voiceKey пропускается.
 """
 from __future__ import annotations
 import argparse
+import base64
+import contextlib
 import json
 import os
 import re
 import sys
 import time
+import urllib.error
+import urllib.request
 import wave
-import contextlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -33,102 +39,75 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # ---------------------------------------------------------------------------
 _ELLIPSIS_RE = re.compile(r"\.\.\.|…")
 _DASH_RE = re.compile(r"\s*(?:--|—|–)\s*")
+_UI_RE = re.compile(r"\s*(?://|→|\||>>)\s*")
 _BRACE_N_RE = re.compile(r"\{n\}")
 _UNSAFE_RE = re.compile(r"[^0-9A-Za-zА-Яа-яЁё' +.,!?:;\-\s]")
 _WS_RE = re.compile(r"\s+")
 
 
-def load_pronunciation(path=None):
-    path = path or os.path.join(HERE, "pronunciation.json")
+def load_json(path):
     with open(path, "r", encoding="utf-8") as f:
-        d = json.load(f)
+        return json.load(f)
+
+
+def load_voices(path=None):
+    return load_json(path or os.path.join(HERE, "voices.json"))
+
+
+def load_pronunciation(path=None):
+    d = load_json(path or os.path.join(HERE, "pronunciation.json"))
     return {k: v for k, v in d.items() if not k.startswith("_")}
 
 
 def normalize_voice_text(text, pronunciation):
-    """Готовит voiceText к синтезу: убирает кавычки-ёлочки, превращает
-    многоточия/тире в паузу-запятую, раскрывает словарь произношения
-    (сначала более длинные ключи — напр. '2260-х' раньше отдельного '2260'),
-    чистит небезопасные символы, гарантирует конечную пунктуацию.
-    Оригинальный видимый текст (line.text) эта функция никогда не трогает —
-    она вызывается только на копии, уходящей в TTS.
-    """
+    """Готовит voiceText к синтезу: убирает кавычки-ёлочки и служебные UI-обозначения
+    ('//', '→'), превращает многоточия/тире в паузу-запятую, раскрывает словарь
+    произношения (сначала более длинные ключи), чистит небезопасные символы,
+    гарантирует конечную пунктуацию. Экранный текст (line.text) не трогается."""
     t = text
-    t = _BRACE_N_RE.sub("", t)  # предохранитель: все динамические {n}-реплики уже должны иметь явный voiceText
-    t = t.replace("«", "").replace("»", "")  # « »
+    t = _BRACE_N_RE.sub("", t)
+    t = t.replace("«", "").replace("»", "")
+    t = _UI_RE.sub(", ", t)
     t = _ELLIPSIS_RE.sub(", ", t)
     t = _DASH_RE.sub(", ", t)
     for key in sorted(pronunciation.keys(), key=len, reverse=True):
-        pattern = re.compile(r"\b" + re.escape(key) + r"\b", re.IGNORECASE)
+        pattern = re.compile(r"(?<![\wА-Яа-яЁё])" + re.escape(key) + r"(?![\wА-Яа-яЁё])", re.IGNORECASE)
         t = pattern.sub(pronunciation[key], t)
     t = _UNSAFE_RE.sub("", t)
+    t = re.sub(r"\s+([,.!?:;])", r"\1", t)
+    t = re.sub(r"([,.!?:;])\s*,", r"\1", t)  # ", ," после замен тире/UI-токенов
     t = _WS_RE.sub(" ", t).strip()
     if t and t[-1] not in ".!?":
         t += "."
     return t
 
 
+def dictionary_hits(text, pronunciation):
+    """Какие ключи словаря сработали бы в этом тексте (для REVIEW/GATE 3 выборки)."""
+    hits = []
+    for key in pronunciation:
+        if re.search(r"(?<![\wА-Яа-яЁё])" + re.escape(key) + r"(?![\wА-Яа-яЁё])", text, re.IGNORECASE):
+            hits.append(key)
+    return hits
+
+
 # ---------------------------------------------------------------------------
-# Модель + accentor — загружаются один раз через load_engine()
+# WAV helpers
 # ---------------------------------------------------------------------------
-class Engine:
-    def __init__(self, model, accentor, sample_rate):
-        self.model = model
-        self.accentor = accentor
-        self.sample_rate = sample_rate
-
-
-def load_engine(model_id="v5_cis_base", sample_rate=24000, language="ru"):
-    import torch
-    from silero import silero_tts
-
-    torch.set_grad_enabled(False)
-    model, _example = silero_tts(language=language, speaker=model_id)
-    try:
-        model.to(torch.device("cpu"))
-    except Exception:
-        pass
-
-    accentor = None
-    try:
-        from silero_stress import load_accentor
-        accentor = load_accentor(lang="ru")
-    except Exception as e:
-        print(f"WARNING: silero-stress accentor unavailable ({e}) — "
-              f"продолжаем без ударений (accentor будет no-op).", file=sys.stderr)
-
-    return Engine(model, accentor, sample_rate)
-
-
-def apply_stress(engine, text):
-    """try/except-обёртка (п.6 спеки) — ошибка accentor НИКОГДА не должна
-    прерывать генерацию остальных реплик; при сбое возвращаем текст как есть
-    и сообщаем причину вызывающему коду (для voice-build-report.json)."""
-    if engine.accentor is None:
-        return text, None
-    try:
-        return engine.accentor(text), None
-    except Exception as e:
-        return text, str(e)
-
-
-def synth(engine, text, speaker):
-    """Возвращает 1-D numpy float32 массив (моно) на sample_rate движка."""
-    audio = engine.model.apply_tts(text=text, speaker=speaker, sample_rate=engine.sample_rate)
-    return audio
-
-
-def save_wav(path, audio_tensor, sample_rate):
-    import numpy as np
-    arr = audio_tensor.detach().cpu().numpy() if hasattr(audio_tensor, "detach") else np.asarray(audio_tensor)
-    arr = np.clip(arr, -1.0, 1.0)
-    pcm16 = (arr * 32767.0).astype("<i2")
+def save_wav_pcm16(path, pcm_bytes, sample_rate):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with contextlib.closing(wave.open(path, "wb")) as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(sample_rate)
-        w.writeframes(pcm16.tobytes())
+        w.writeframes(pcm_bytes)
+
+
+def save_wav_tensor(path, audio_tensor, sample_rate):
+    import numpy as np
+    arr = audio_tensor.detach().cpu().numpy() if hasattr(audio_tensor, "detach") else np.asarray(audio_tensor)
+    arr = np.clip(arr, -1.0, 1.0)
+    save_wav_pcm16(path, (arr * 32767.0).astype("<i2").tobytes(), sample_rate)
 
 
 def wav_is_valid(path):
@@ -142,45 +121,192 @@ def wav_is_valid(path):
 
 
 # ---------------------------------------------------------------------------
-# Основной resumable-проход по уникальным репликам
+# Провайдеры
 # ---------------------------------------------------------------------------
-def generate_all(lines_path, out_dir, speaker_map, report=None, model_id="v5_cis_base",
-                  sample_rate=24000, progress=True):
-    """lines_path — story-lines.json (extract_story.mjs).
-    speaker_map — {who: resolved_speaker_id} (см. voices.json.characters[who].resolved).
-    Возвращает список записей {voiceKey,who,text,voiceText,wavPath,ok,error,retries,durationSec}.
-    """
-    with open(lines_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+class ProviderError(RuntimeError):
+    pass
+
+
+class YandexProvider:
+    """Yandex SpeechKit v3 REST (utteranceSynthesis). Голос/роль — из конфига
+    персонажа; отсутствие голоса или ошибка API = исключение, без подмены."""
+    name = "yandex"
+    auto_stress = False
+    ENDPOINT = "https://tts.api.cloud.yandex.net/tts/v3/utteranceSynthesis"
+
+    def __init__(self, cfg):
+        self.sample_rate = int(cfg.get("masterSampleRate", 48000))
+        api_key = os.environ.get("YANDEX_API_KEY", "").strip()
+        iam = os.environ.get("YANDEX_IAM_TOKEN", "").strip()
+        self.folder = os.environ.get("YANDEX_FOLDER_ID", "").strip()
+        if api_key:
+            self._auth = "Api-Key " + api_key
+        elif iam:
+            self._auth = "Bearer " + iam
+            if not self.folder:
+                raise ProviderError("YANDEX_IAM_TOKEN задан, но нет YANDEX_FOLDER_ID (обязателен для IAM-токена)")
+        else:
+            raise ProviderError("Нет credentials Yandex SpeechKit: задайте YANDEX_API_KEY (или YANDEX_IAM_TOKEN + YANDEX_FOLDER_ID) в окружении")
+
+    def synth_wav(self, text, voice, role=None, speed=1.0, retries=2):
+        if not voice:
+            raise ProviderError("голос не задан (voices.json characters.*.voice = null — кастинг не завершён)")
+        hints = [{"voice": voice}]
+        if role:
+            hints.append({"role": role})
+        hints.append({"speed": str(speed)})
+        body = {
+            "text": text,
+            "hints": hints,
+            "outputAudioSpec": {"rawAudio": {"audioEncoding": "LINEAR16_PCM", "sampleRateHertz": str(self.sample_rate)}},
+            "loudnessNormalizationType": "LUFS",
+        }
+        headers = {"Authorization": self._auth, "Content-Type": "application/json"}
+        if self.folder:
+            headers["x-folder-id"] = self.folder
+        data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+        last = None
+        for attempt in range(retries + 1):
+            req = urllib.request.Request(self.ENDPOINT, data=data, headers=headers, method="POST")
+            try:
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    raw = resp.read().decode("utf-8")
+                return self._pcm_from_stream(raw)
+            except urllib.error.HTTPError as e:
+                detail = ""
+                try:
+                    detail = e.read().decode("utf-8", "replace")[:400]
+                except Exception:
+                    pass
+                # 4xx — не повторяем (неверный голос/роль/текст), 5xx/429 — повторим
+                if 400 <= e.code < 500 and e.code != 429:
+                    raise ProviderError(f"Yandex TTS HTTP {e.code} для voice={voice} role={role}: {detail}") from None
+                last = f"HTTP {e.code}: {detail}"
+            except (urllib.error.URLError, TimeoutError) as e:
+                last = f"network: {e}"
+            time.sleep(1.5 * (attempt + 1))
+        raise ProviderError(f"Yandex TTS не ответил после {retries + 1} попыток: {last}")
+
+    @staticmethod
+    def _pcm_from_stream(raw):
+        """Ответ v3 REST — поток JSON-объектов (по одному на строку) с result.audioChunk.data (base64)."""
+        chunks = []
+        objs = []
+        try:
+            objs.append(json.loads(raw))
+        except json.JSONDecodeError:
+            for line in raw.splitlines():
+                line = line.strip()
+                if line:
+                    objs.append(json.loads(line))
+        for o in objs:
+            if "error" in o:
+                raise ProviderError("Yandex TTS error: " + json.dumps(o["error"], ensure_ascii=False)[:400])
+            res = o.get("result", o)
+            chunk = res.get("audioChunk") or {}
+            if chunk.get("data"):
+                chunks.append(base64.b64decode(chunk["data"]))
+        pcm = b"".join(chunks)
+        if not pcm:
+            raise ProviderError("Yandex TTS вернул пустой аудио-поток")
+        return pcm
+
+    def synth_to_file(self, path, text, character_cfg):
+        pcm = self.synth_wav(text, character_cfg.get("voice"), character_cfg.get("role"), character_cfg.get("speed", 1.0))
+        save_wav_pcm16(path, pcm, self.sample_rate)
+
+
+class SileroProvider:
+    """Dev/offline preview. Модель и accentor загружаются один раз."""
+    name = "silero"
+    auto_stress = True
+
+    def __init__(self, cfg):
+        import torch
+        from silero import silero_tts
+        torch.set_grad_enabled(False)
+        self.sample_rate = int(cfg.get("masterSampleRate", 24000))
+        self.model, _ = silero_tts(language=cfg.get("language", "ru"), speaker=cfg.get("modelId", "v5_cis_base"))
+        try:
+            self.model.to(torch.device("cpu"))
+        except Exception:
+            pass
+        self.dev_speakers = cfg.get("devSpeakers", {})
+        self.accentor = None
+        try:
+            from silero_stress import load_accentor
+            self.accentor = load_accentor(lang="ru")
+        except Exception as e:  # accentor — опционален
+            print(f"WARNING: silero-stress недоступен ({e}), ударения не расставляются", file=sys.stderr)
+
+    def stress(self, text):
+        if self.accentor is None:
+            return text, None
+        try:
+            return self.accentor(text), None
+        except Exception as e:
+            return text, str(e)
+
+    def synth_to_file(self, path, text, character_cfg, who=None):
+        speaker = self.dev_speakers.get(who)
+        if not speaker or speaker not in getattr(self.model, "speakers", [speaker]):
+            raise ProviderError(f"silero dev speaker для '{who}' не найден в модели: {speaker}")
+        audio = self.model.apply_tts(text=text, speaker=speaker, sample_rate=self.sample_rate)
+        save_wav_tensor(path, audio, self.sample_rate)
+
+
+def make_provider(name, voices_cfg):
+    pcfg = voices_cfg.get("providers", {}).get(name)
+    if not pcfg:
+        raise ProviderError(f"провайдер '{name}' не описан в voices.json")
+    if name == "yandex":
+        return YandexProvider(pcfg)
+    if name == "silero":
+        return SileroProvider(pcfg)
+    raise ProviderError(f"неизвестный провайдер '{name}'")
+
+
+def require_production_ready(voices_cfg, provider_name):
+    """Production (yandex): у каждого персонажа должен быть утверждённый голос."""
+    if provider_name != "yandex":
+        return
+    missing = [who for who, c in voices_cfg["characters"].items() if not c.get("voice")]
+    if missing:
+        raise ProviderError("В voices.json не заполнен production-голос для: " + ", ".join(missing)
+                            + " — сначала кастинг (GATE 1/2), затем build. Автоподбор голоса запрещён.")
+
+
+# ---------------------------------------------------------------------------
+# Основной resumable-проход
+# ---------------------------------------------------------------------------
+def generate_all(lines_path, out_dir, voices_cfg, provider_name="yandex", report=None, progress=True):
+    data = load_json(lines_path)
     unique = data["uniqueEntries"]
     pronunciation = load_pronunciation()
-
-    if report is None:
-        report = {"errors": [], "warnings": []}
+    report = report if report is not None else {}
     report.setdefault("errors", [])
     report.setdefault("warnings", [])
 
-    engine = load_engine(model_id=model_id, sample_rate=sample_rate)
+    require_production_ready(voices_cfg, provider_name)
+    provider = make_provider(provider_name, voices_cfg)
+    characters = voices_cfg["characters"]
+
     results = []
     total = len(unique)
     for i, u in enumerate(unique, 1):
-        who = u["who"]
-        voice_key = u["voiceKey"]
+        who, voice_key = u["who"], u["voiceKey"]
         raw_text = u.get("voiceText") or u["text"]
-        speaker = speaker_map.get(who)
         wav_path = os.path.join(out_dir, who, voice_key + ".wav")
         rec = {"voiceKey": voice_key, "who": who, "text": u["text"], "voiceText": u.get("voiceText"),
-               "speaker": speaker, "wavPath": wav_path, "ok": False, "error": None, "retries": 0}
-
+               "provider": provider.name, "wavPath": wav_path, "ok": False, "error": None,
+               "dictHits": dictionary_hits(raw_text, pronunciation)}
         if progress:
-            print(f"[{i:03d}/{total:03d}] {who:10s} {voice_key} ...", flush=True)
-
-        if speaker is None:
-            rec["error"] = f"no speaker mapping for character '{who}'"
+            print(f"[{i:03d}/{total:03d}] {who:8s} {voice_key} ...", flush=True)
+        if who not in characters:
+            rec["error"] = f"speaker '{who}' отсутствует в voices.json characters"
             report["errors"].append(rec["error"])
             results.append(rec)
             continue
-
         if wav_is_valid(wav_path):
             rec["ok"] = True
             rec["skipped"] = True
@@ -188,39 +314,33 @@ def generate_all(lines_path, out_dir, speaker_map, report=None, model_id="v5_cis
             continue
 
         normalized = normalize_voice_text(raw_text, pronunciation)
-
-        def _attempt(use_stress):
-            text_for_tts = normalized
-            stress_err = None
-            if use_stress:
-                text_for_tts, stress_err = apply_stress(engine, normalized)
-                if stress_err:
-                    report["warnings"].append(f"{voice_key}: accentor failed ({stress_err}), continuing unstressed")
-            audio = synth(engine, text_for_tts, speaker)
-            save_wav(wav_path, audio, sample_rate)
-            return text_for_tts
-
-        ok = False
+        rec["ttsText"] = normalized
         last_err = None
-        # Попытка 1: с ударением. Попытка 2 (retry): снова с ударением (на случай
-        # временной ошибки). Попытка 3: без ударения вовсе. Если и она падает —
-        # запись помечается failed, но остальные реплики продолжают генерироваться.
-        for attempt, use_stress in enumerate([True, True, False], start=1):
+        for attempt in range(2):
             try:
-                _attempt(use_stress)
-                ok = True
-                rec["retries"] = attempt - 1
-                rec["stressed"] = use_stress
+                text_for_tts = normalized
+                if provider.auto_stress:
+                    text_for_tts, serr = provider.stress(normalized)
+                    if serr:
+                        report["warnings"].append(f"{voice_key}: accentor failed ({serr}), unstressed")
+                if provider.name == "silero":
+                    provider.synth_to_file(wav_path, text_for_tts, characters[who], who=who)
+                else:
+                    provider.synth_to_file(wav_path, text_for_tts, characters[who])
+                rec["ok"] = True
+                rec["retries"] = attempt
                 break
-            except Exception as e:
+            except ProviderError as e:
                 last_err = str(e)
-                time.sleep(0.05)
-        rec["ok"] = ok
-        if not ok:
+                if "HTTP 4" in last_err or "credentials" in last_err or "не задан" in last_err:
+                    break  # конфигурационная ошибка — повтор бессмыслен
+            except Exception as e:  # noqa: BLE001
+                last_err = f"{type(e).__name__}: {e}"
+            time.sleep(0.3)
+        if not rec["ok"]:
             rec["error"] = last_err
             report["errors"].append(f"{voice_key} ({who}): {last_err}")
         results.append(rec)
-
     return results, report
 
 
@@ -229,25 +349,15 @@ def main():
     ap.add_argument("--lines", default=os.path.join(HERE, "story-lines.json"))
     ap.add_argument("--out", default=os.path.join(HERE, "_work", "master_wav"))
     ap.add_argument("--voices", default=os.path.join(HERE, "voices.json"))
-    ap.add_argument("--report", default=os.path.join(HERE, "voice-build-report.json"))
+    ap.add_argument("--provider", default=None, help="yandex (production, default из voices.json) | silero (dev preview)")
     args = ap.parse_args()
-
-    with open(args.voices, "r", encoding="utf-8") as f:
-        voices_cfg = json.load(f)
-    speaker_map = {who: cfg["resolved"] for who, cfg in voices_cfg["characters"].items()}
-    sample_rate = voices_cfg["model"]["master_sample_rate"]
-    model_id = voices_cfg["model"]["id"]
-
-    results, report = generate_all(args.lines, args.out, speaker_map,
-                                    model_id=model_id, sample_rate=sample_rate)
+    voices_cfg = load_voices(args.voices)
+    provider = args.provider or voices_cfg.get("provider", "yandex")
+    results, report = generate_all(args.lines, args.out, voices_cfg, provider_name=provider)
     ok = sum(1 for r in results if r["ok"])
-    failed = [r for r in results if not r["ok"]]
-    print(f"\ngenerated/skipped OK: {ok}/{len(results)}  failed: {len(failed)}")
-    with open(args.report, "w", encoding="utf-8") as f:
-        json.dump({"results": results, "errors": report["errors"], "warnings": report["warnings"]},
-                   f, ensure_ascii=False, indent=1)
-    if failed:
-        print("FAILED voiceKeys:", ", ".join(r["voiceKey"] for r in failed), file=sys.stderr)
+    print(f"\nOK: {ok}/{len(results)}  failed: {len(results) - ok}")
+    if ok != len(results):
+        print("FAILED:", ", ".join(r["voiceKey"] for r in results if not r["ok"]), file=sys.stderr)
         sys.exit(1)
 
 

@@ -5,3 +5,12 @@ Thumbs.db
 # Локальные копии/бэкапы — не для публикации
 _backup_stage1/
 VOID-SECTOR — копия/
+
+# Секреты TTS-провайдера читаются только из окружения — никаких ключей в git
+.env
+.env.*
+
+# Локальные preview кастинга голосов (генерируются tools/voice/casting.py, слушаются локально)
+tools/voice/previews/
+tools/voice/_work/
+latest_silero_models.yml
