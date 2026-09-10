@@ -28,12 +28,7 @@
 
 | Файл | Игровая категория | Изменено |
 |---|---|---|
-| laserSmall_000/001/002.mp3 | `gun` (выстрел игрока) | обрезка громкости (loudnorm), перекодировано в mp3 |
-| laserLarge_000/001.mp3 | критический выстрел | -//- |
-| laserLarge_002/003.mp3 | `plasma` (вражеское оружие) | -//- |
-| laserRetro_000/001.mp3 | `rail` (рельсотрон) | -//- |
-| laserRetro_002/003.mp3 | `bolt` (вражеский залп) | -//- |
-| explosionCrunch_000/001/002.mp3 | `explosionSmall` | -//- |
+| explosionCrunch_000/001/002.mp3 | `explosionSmall` | обрезка громкости (loudnorm), перекодировано в mp3 |
 | explosionCrunch_002/003/004.mp3 | `explosionMedium` (пересекается по индексу 002 с small — оба сэмпла звучат совместимо для обеих категорий, обычная практика повторного использования curated-набора) | -//- |
 | lowFrequency_explosion_000/001.mp3 + explosionCrunch_004.mp3 | `explosionLarge` / `explosionBoss` (тяжёлый низкочастотный слой) | -//- |
 | impactMetal_000/001/002.mp3 | `hitMetal` | -//- |
@@ -42,3 +37,8 @@
 
 `hitShield`/`shieldDown` намеренно остались полностью процедурными — реальный
 физический сэмпл для энергетического щита не нужен (см. audio.js).
+
+Оружие (`gun`, критический выстрел, `bolt`, `plasma`, `rail`) с редизайна звука
+выстрелов (направление «Mass Driver», выбрано на GATE 4) полностью процедурное;
+ранее использовавшиеся сэмплы Kenney `laserSmall_*`, `laserLarge_*`, `laserRetro_*`
+из проекта удалены.
