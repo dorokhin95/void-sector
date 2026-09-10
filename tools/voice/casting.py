@@ -68,22 +68,30 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
 
     table = {}  # role -> candidate label -> [mp3 rel paths]
+    failures = []  # кандидат, которого API не принял (несуществующая роль и т.п.) — не роняем весь раунд
     for role, cands in roles.items():
         for c in cands:
             label = f"{c['voice']}/{c['role'] or 'default'}"
             files = []
-            for i, phrase in enumerate(phrases):
-                text = gv.normalize_voice_text(phrase, pron)
-                stem = f"{role}_{c['voice']}_{c['role'] or 'default'}_{i + 1:02d}"
-                wav = os.path.join(out_dir, stem + ".wav")
-                mp3 = os.path.join(out_dir, stem + ".mp3")
-                if not os.path.isfile(mp3):
-                    print(f"[{role}] {label} #{i + 1}: {text}")
-                    provider.synth_to_file(wav, text, {"voice": c["voice"], "role": c["role"], "speed": 1.0})
-                    encode_preview(ff, wav, mp3)
-                    os.remove(wav)
-                files.append(os.path.basename(mp3))
+            try:
+                for i, phrase in enumerate(phrases):
+                    text = gv.normalize_voice_text(phrase, pron)
+                    stem = f"{role}_{c['voice']}_{c['role'] or 'default'}_{i + 1:02d}"
+                    wav = os.path.join(out_dir, stem + ".wav")
+                    mp3 = os.path.join(out_dir, stem + ".mp3")
+                    if not os.path.isfile(mp3):
+                        print(f"[{role}] {label} #{i + 1}: {text}")
+                        provider.synth_to_file(wav, text, {"voice": c["voice"], "role": c["role"], "speed": 1.0})
+                        encode_preview(ff, wav, mp3)
+                        os.remove(wav)
+                    files.append(os.path.basename(mp3))
+            except gv.ProviderError as e:
+                failures.append(f"{role} {label}: {e}")
+                print(f"  !! пропускаю кандидата {label}: {e}", file=sys.stderr)
+                continue
             table.setdefault(role, {})[label] = files
+    if failures:
+        print("\nКандидаты с ошибкой API (в превью не вошли):\n - " + "\n - ".join(failures))
 
     # HTML: строки — фразы, столбцы — кандидаты; одинаковые фразы рядом для A/B
     parts = ["<!doctype html><html lang='ru'><head><meta charset='utf-8'><title>Кастинг голосов — раунд " + args.round + "</title>",
