@@ -12,5 +12,6 @@ VOID-SECTOR — копия/
 
 # Локальные preview кастинга голосов (генерируются tools/voice/casting.py, слушаются локально)
 tools/voice/previews/
+tools/audio/previews/
 tools/voice/_work/
 latest_silero_models.yml

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>SFX offline render</title></head>
+<body style="background:#070c17;color:#eef;font:14px Arial;padding:20px">
+<h1>Офлайн-рендер кандидатов в WAV</h1><pre id="log"></pre>
+<script src="gun-candidates.js"></script>
+<script>
+'use strict';
+// Рендерит каждый (кандидат × сценарий) через OfflineAudioContext тем же кодом, что превью,
+// и POST'ит WAV на локальный render-server (tools/audio/render-server.mjs), который пишет файлы
+// и конвертирует в mp3. Пользовательский жест не нужен: OfflineAudioContext не подчиняется autoplay.
+const log=m=>{document.getElementById('log').textContent+=m+'\n'};
+function wavFromBuffer(buf){
+ const ch=buf.getChannelData(0),n=ch.length,out=new DataView(new ArrayBuffer(44+n*2));
+ const w=(o,s)=>{for(let i=0;i<s.length;i++)out.setUint8(o+i,s.charCodeAt(i))};
+ w(0,'RIFF');out.setUint32(4,36+n*2,true);w(8,'WAVE');w(12,'fmt ');out.setUint32(16,16,true);out.setUint16(20,1,true);out.setUint16(22,1,true);
+ out.setUint32(24,buf.sampleRate,true);out.setUint32(28,buf.sampleRate*2,true);out.setUint16(32,2,true);out.setUint16(34,16,true);w(36,'data');out.setUint32(40,n*2,true);
+ for(let i=0;i<n;i++){const s=Math.max(-1,Math.min(1,ch[i]));out.setInt16(44+i*2,s<0?s*32768:s*32767,true)}
+ return out.buffer;
+}
+async function renderOne(id,pattern){
+ const probe=makeGunSynth(new OfflineAudioContext(1,48000,48000),null);
+ const dur=probe.PATTERNS[pattern].dur;
+ const ctx=new OfflineAudioContext(1,Math.ceil(48000*dur),48000);
+ // та же мастер-цепочка, что в превью: master(.6) → compressor → destination
+ const master=ctx.createGain();master.gain.value=.6;
+ const comp=ctx.createDynamicsCompressor();comp.threshold.value=-16;comp.knee.value=14;comp.ratio.value=4;comp.attack.value=.004;comp.release.value=.22;
+ master.connect(comp);comp.connect(ctx.destination);
+ const synth=makeGunSynth(ctx,master);
+ synth.PATTERNS[pattern].run(synth.GUNS[id],.05);
+ const rendered=await ctx.startRendering();
+ let peak=0;for(const s of rendered.getChannelData(0))peak=Math.max(peak,Math.abs(s));
+ const res=await fetch('/upload?name='+encodeURIComponent(`gun_${id}_${pattern}`),{method:'POST',body:wavFromBuffer(rendered)});
+ log(`${id}/${pattern}: ${dur}s peak=${peak.toFixed(3)} → ${res.status}`);
+}
+(async()=>{
+ try{
+  for(const id of ['ref','A','B','C'])for(const p of ['single','burst','max','crit'])await renderOne(id,p);
+  await fetch('/done');log('DONE');
+ }catch(e){log('ERROR '+e);await fetch('/done?error='+encodeURIComponent(String(e)))}
+})();
+</script>
+</body></html>
