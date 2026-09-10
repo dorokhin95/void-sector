@@ -45,12 +45,9 @@ const audioAPI=(function(){
  // расходует отдельный слот MAX_VOICES. Загрузка — best-effort и не раньше первого успешного
  // ensureContext() (не блокирует старт игры); если сэмпл не загрузился/не поддержан браузером —
  // playSampleInto() просто возвращает false и процедурный слой звучит как и раньше.
+ // Оружие (gun/bolt/plasma/rail) после редизайна GATE 4 полностью процедурное — лазерные
+ // сэмплы Kenney (laserSmall/laserLarge/laserRetro) из проекта удалены.
  const SAMPLE_MANIFEST={
-  gun:['laserSmall_000','laserSmall_001','laserSmall_002'],
-  critShot:['laserLarge_000','laserLarge_001'],
-  plasma:['laserLarge_002','laserLarge_003'],
-  rail:['laserRetro_000','laserRetro_001'],
-  bolt:['laserRetro_002','laserRetro_003'],
   explosionSmall:['explosionCrunch_000','explosionCrunch_001','explosionCrunch_002'],
   explosionMedium:['explosionCrunch_002','explosionCrunch_003','explosionCrunch_004'],
   explosionLarge:['lowFrequency_explosion_000','lowFrequency_explosion_001','explosionCrunch_004'],
@@ -187,12 +184,22 @@ const audioAPI=(function(){
 
  // ---------- Библиотека одиночных эффектов ----------
  // Каждая функция получает голос v, время t и параметры o; возвращает длительность в секундах.
- const RADIO_PITCH={spectre:520,voronova:680,leya:790,markov:430,unknown:300};
+ const RADIO_PITCH={captain:430,ship_ai:680}; // тон открытия эфира по спикеру story.js (captain / ship_ai)
+ // Орудие игрока — MASS DRIVER (направление A, утверждено на GATE 4; кандидаты — tools/audio/gun-candidates.js).
+ // Тяжёлый кинетический удар: щелчок-транзиент → плотное тело 110→60 Гц → металлический отзвук
+ // затвора → микро-хвост. 4 дискретных варианта тембра + случайные ±3% высоты и ±1.5 дБ на выстрел.
+ const GUN_VARIANTS=[{hp:1800,ring:3200,body:95},{hp:1600,ring:2900,body:92},{hp:2100,ring:3500,body:98},{hp:1900,ring:3800,body:90}];
+ const dBv=k=>Math.pow(10,(rnd()*2-1)*k/20); // случайный множитель громкости ±k дБ
  const SFX={
-  gun(v,t,o){const n=Math.max(1,Math.min(4,(o.count||2)/2)),A=.45+n*.12,p=rv(.08);
-   N(v,t,t+.05,F('highpass',1400*p,.8,G(v,t,.002,A*.5,.03)));
-   const c=O(v,'sine',900*p,t,t+.09,G(v,t,.001,A*.5,.06));sweep(c.frequency,900*p,200*p,t,t+.07);
-   if(o.critical){beep(v,t,2600*p,.11,.22,'triangle',1700);playSampleInto(v,t,'critShot',{gain:.4})}else playSampleInto(v,t,'gun',{gain:.32*Math.min(1,A)});return .15},
+  gun(v,t,o){const n=Math.max(1,Math.min(4,(o.count||2)/2)),V=GUN_VARIANTS[Math.floor(rnd()*GUN_VARIANTS.length)],p=rv(.03),A=(.5+n*.08)*dBv(1.5);
+   click(v,t,.55*A,V.hp,.012);                                                        // транзиент
+   boom(v,t,110*p,60*p,.075,.7*A);                                                     // тело 110→60 Гц, 75 мс
+   O(v,'triangle',V.body*p,t,t+.09,S(1.8,F('lowpass',900,1.2,G(v,t,.002,.3*A,.06))));  // сатурированная низкая середина
+   N(v,t+.004,t+.05,F('bandpass',V.ring*p,8,G(v,t+.004,.002,.16*A,.04)));             // отзвук затвора
+   N(v,t+.02,t+.07,F('lowpass',700,.8,G(v,t+.02,.006,.08*A,.045)));                   // микро-хвост
+   // Критический выстрел — тот же тип оружия, но глубже и тяжелее: саб-слой + тупой транзиент + резонанс
+   if(o.critical){boom(v,t,55*p,38,.14,.55);click(v,t+.008,.3,900,.02);N(v,t,t+.09,F('bandpass',2400*p,6,G(v,t,.002,.14,.07)))}
+   return .15},
   overheat(v,t){N(v,t,t+1.3,F('bandpass',2800,.7,G(v,t,.03,.32,1.2)));for(let i=0;i<3;i++)beep(v,t+i*.22,760-i*120,.14,.14,'square',560-i*100);return 1.4},
   heatWarning(v,t){beep(v,t,1250,.06,.14);beep(v,t+.13,1250,.06,.14);return .25},
   missileLaunch(v,t,o){const n=Math.min(3,o.count||1);for(let i=0;i<n;i++){const s=t+i*.08;whoosh(v,s,300,1800,.45,.38,'bandpass',1.4);const g=G(v,s,.01,.32,.42);sweep(O(v,'sawtooth',120*rv(.05),s,s+.5,F('lowpass',700,1,g)).frequency,120,60,s,s+.4);playSampleInto(v,s,'missileLaunch',{gain:.4})}return .6},
@@ -226,10 +233,24 @@ const audioAPI=(function(){
   stageChange(v,t){beep(v,t,740,.08,.1,'triangle');beep(v,t+.1,988,.16,.1,'triangle');return .3},
   shopOpen(v,t){[523,659,784,1046].forEach((f,i)=>beep(v,t+i*.08,f,.4,.12,'sine'));return .8},
   mineArm(v,t){beep(v,t,1000,.03,.08,'sine');beep(v,t+.06,1000,.03,.06,'sine');return .1},
-  // Вражеское оружие
-  bolt(v,t){const p=rv(.1);beep(v,t,1200*p,.12,.28,'square',300*p);playSampleInto(v,t,'bolt',{gain:.3});return .15},
-  plasma(v,t){const p=rv(.08),g=G(v,t,.01,.3,.3),lp=F('lowpass',1400,2,g);sweep(lp.frequency,1400,300,t,t+.3);const o=O(v,'sawtooth',180*p,t,t+.32,lp);LFO(v,28,45,o.frequency,t,t+.32);playSampleInto(v,t,'plasma',{gain:.3});return .35},
-  rail(v,t){click(v,t,.5,3000,.012);const g=G(v,t,.004,.3,.4);sweep(O(v,'sawtooth',3000,t,t+.42,F('lowpass',5000,1,g)).frequency,3000,400,t,t+.4);playSampleInto(v,t,'rail',{gain:.4});return .45},
+  // Вражеское оружие — та же кинетическая семья, что и орудие игрока (GATE 4: A), но с другим
+  // регистром и характером, чтобы вражеский огонь читался на слух. ±3–6% высоты, ±1.5 дБ.
+  // bolt — лёгкая автопушка: щелчок, короткое тело 300→140 Гц, тонкий отзвук и «горячий» тональный след.
+  bolt(v,t){const p=rv(.05),A=dBv(1.5);
+   click(v,t,.35*A,2600,.008);boom(v,t,300*p,140*p,.05,.4*A);
+   N(v,t+.003,t+.04,F('bandpass',1600*p,7,G(v,t+.003,.002,.12*A,.035)));
+   sweep(O(v,'square',520*p,t,t+.07,F('lowpass',1500,1,G(v,t,.002,.12*A,.05))).frequency,520*p,260*p,t,t+.05);return .12},
+  // plasma — тяжёлый горячий заряд: тупой транзиент, низ 90→48 Гц, сатурированное «дрожащее» тело с LFO (идентичность плазмы), шипение.
+  plasma(v,t){const p=rv(.06),A=dBv(1.5);
+   click(v,t,.3*A,1200,.015);boom(v,t,90*p,48*p,.18,.5*A);
+   const lp=F('lowpass',1300,2,G(v,t,.008,.28*A,.28));sweep(lp.frequency,1300,260,t,t+.28);const o=O(v,'sawtooth',150*p,t,t+.3,S(1.5,lp));LFO(v,26,40,o.frequency,t,t+.3);
+   N(v,t,t+.2,F('bandpass',700*p,2,G(v,t,.01,.14*A,.18)));return .35},
+  // rail — рельсотрон: резкий крак, кинетический удар 140→70 Гц, электромагнитный «зинг» 3000→400 Гц, звон направляющих, короткий хвост.
+  rail(v,t){const p=rv(.03),A=dBv(1.5);
+   click(v,t,.6*A,3000,.012);boom(v,t,140*p,70*p,.09,.55*A);
+   sweep(O(v,'sawtooth',3000*p,t,t+.42,F('lowpass',5000,1,G(v,t,.004,.28*A,.4))).frequency,3000*p,400,t,t+.4);
+   N(v,t+.005,t+.09,F('bandpass',4500*p,9,G(v,t+.005,.002,.14*A,.08)));
+   N(v,t+.03,t+.25,F('lowpass',900,.8,G(v,t+.03,.02,.1*A,.2)));return .45},
   missileEnemy(v,t){whoosh(v,t,200,900,.55,.3,'bandpass',1.2);const g=G(v,t,.02,.28,.5);sweep(O(v,'sawtooth',80*rv(.06),t,t+.55,F('lowpass',500,1,g)).frequency,80,45,t,t+.5);return .6},
   empEnemy(v,t){const g=G(v,t,.005,.3,.25);LFO(v,40,.5,g.gain,t,t+.3,'square');N(v,t,t+.3,F('highpass',1500,.8,g));beep(v,t,2500,.22,.08,'sine',1800);return .32},
   hitMetal(v,t,o){const f=2200/(1+(o.damage||1)*.04)*rv(.1);beep(v,t,f,.045,.22,'triangle',f*.6);click(v,t,.12,3500,.01);playSampleInto(v,t,'hitMetal',{gain:.45,rateMin:.97,rateMax:1.03});return .08},
@@ -254,11 +275,9 @@ const audioAPI=(function(){
   miniSpawn(v,t){const lp=F('lowpass',1800,1,v.g);for(let i=0;i<4;i++){const s=t+i*.19,g=audio.createGain();g.connect(lp);envHold(g.gain,s,.01,.18,.12,.05);O(v,'square',i%2?392:523,s,s+.2,g)}
    const h=GH(v,t,.2,.25,.4,.4),hl=F('lowpass',600,1,h);O(v,'sawtooth',65,t,t+1.1,hl,-6);O(v,'sawtooth',98,t,t+1.1,hl,6);send(v,.3);return 1.2},
   // Радио для сюжета (story.js)
-  radioOpen(v,t,o){N(v,t,t+.14,F('highpass',1500,.8,G(v,t,.004,.22,.12)));const f=RADIO_PITCH[o.who]||RADIO_PITCH.unknown;beep(v,t+.1,f,.07,.12,'sine');if(o.who==='unknown')SFX.radioBlip(v,t+.18,o);return .35},
+  radioOpen(v,t,o){N(v,t,t+.14,F('highpass',1500,.8,G(v,t,.004,.22,.12)));beep(v,t+.1,RADIO_PITCH[o&&o.who]||RADIO_PITCH.ship_ai,.07,.12,'sine');return .35},
   radioClose(v,t){N(v,t,t+.08,F('highpass',1800,.8,G(v,t,.003,.18,.07)));beep(v,t+.05,600,.08,.1,'sine',380);return .2},
-  radioBlip(v,t,o){const f=(RADIO_PITCH[o.who]||RADIO_PITCH.unknown)*rv(.03);
-   if(o.who==='unknown'){const g=GH(v,t,.22,.12,.02,.03);O(v,'sine',f,t,t+.3,g,-25);O(v,'sine',f*1.5,t,t+.3,g,25);LFO(v,7,12,g.gain,t,t+.3);return .3}
-   beep(v,t,f,.05,.1,'sine');return .07}
+  radioBlip(v,t,o){beep(v,t,(RADIO_PITCH[o&&o.who]||RADIO_PITCH.ship_ai)*rv(.03),.05,.1,'sine');return .07}
  };
  const PRIORITY={gun:2,hitMetal:1,hitShield:1,hitBlocked:1,uiHover:1,uiClick:3,lockTick:1,notify:1,debris:1,flyby:1,bolt:2,plasma:2,rail:3,missileEnemy:2,empEnemy:2,mineArm:1,
   explosionSmall:3,explosionMedium:4,explosionLarge:5,explosionBoss:7,hullHit:5,shieldHit:4,shieldDown:6,collision:5,emp:5,dash:4,missileLaunch:4,
@@ -500,5 +519,5 @@ const audioAPI=(function(){
  return api;
 })();
 try{globalThis.audioAPI=audioAPI}catch{}
-// Глобальная функция одиночного эффекта: sfx('explosionMedium',{x,y,z}); sfx('radioOpen',{who:'voronova'}).
+// Глобальная функция одиночного эффекта: sfx('explosionMedium',{x,y,z}); sfx('radioOpen',{who:'ship_ai'}).
 function sfx(name,opts){try{return audioAPI.play(name,opts)}catch{return null}}
